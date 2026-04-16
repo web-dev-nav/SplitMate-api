@@ -1,8 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BalanceController;
+use App\Http\Controllers\Api\V1\ExpenseController;
 use App\Http\Controllers\Api\V1\GroupController;
 use App\Http\Controllers\Api\V1\GroupMemberController;
+use App\Http\Controllers\Api\V1\SettlementController;
+use App\Http\Controllers\Api\V1\StatementController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -21,12 +25,31 @@ Route::prefix('v1')->group(function () {
         Route::post('/groups', [GroupController::class, 'store']);
         Route::post('/groups/join', [GroupController::class, 'join']);
 
-        // Group-scoped routes
+        // Group-scoped routes (require membership)
         Route::middleware('ensure.group.member')->group(function () {
+            // Group info
             Route::get('/groups/{group}', [GroupController::class, 'show']);
             Route::get('/groups/{group}/members', [GroupController::class, 'members']);
             Route::post('/groups/{group}/members/deactivate', [GroupMemberController::class, 'deactivate']);
             Route::post('/groups/{group}/members/reactivate', [GroupMemberController::class, 'reactivate']);
+
+            // Expenses
+            Route::get('/groups/{group}/expenses', [ExpenseController::class, 'index']);
+            Route::post('/groups/{group}/expenses', [ExpenseController::class, 'store']);
+            Route::get('/groups/{group}/expenses/{expense}', [ExpenseController::class, 'show']);
+            Route::patch('/groups/{group}/expenses/{expense}/participants', [ExpenseController::class, 'updateParticipants']);
+            Route::post('/groups/{group}/expenses/{expense}/receipt', [ExpenseController::class, 'uploadReceipt']);
+            Route::delete('/groups/{group}/expenses/{expense}/receipt', [ExpenseController::class, 'deleteReceipt']);
+
+            // Settlements
+            Route::get('/groups/{group}/settlements', [SettlementController::class, 'index']);
+            Route::post('/groups/{group}/settlements', [SettlementController::class, 'store']);
+            Route::get('/groups/{group}/settlements/{settlement}', [SettlementController::class, 'show']);
+            Route::get('/groups/{group}/settlements/max-payable', [SettlementController::class, 'maxPayable']);
+
+            // Balance & Statements
+            Route::get('/groups/{group}/balance', [BalanceController::class, 'snapshot']);
+            Route::get('/groups/{group}/statements', [StatementController::class, 'index']);
         });
     });
 });
