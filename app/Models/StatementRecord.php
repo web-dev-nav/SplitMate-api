@@ -4,20 +4,27 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class StatementRecord extends Model
 {
     protected $fillable = [
+        'uuid',
+        'group_id',
         'user_id',
         'expense_id',
         'settlement_id',
         'transaction_type',
         'description',
         'amount',
+        'amount_cents',
         'reference_number',
         'balance_before',
         'balance_after',
         'balance_change',
+        'balance_before_cents',
+        'balance_after_cents',
+        'balance_change_cents',
         'transaction_details',
         'transaction_date',
         'status'
@@ -25,12 +32,24 @@ class StatementRecord extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'amount_cents' => 'integer',
         'balance_before' => 'decimal:2',
         'balance_after' => 'decimal:2',
         'balance_change' => 'decimal:2',
+        'balance_before_cents' => 'integer',
+        'balance_after_cents' => 'integer',
+        'balance_change_cents' => 'integer',
         'transaction_details' => 'array',
         'transaction_date' => 'datetime'
     ];
+
+    /**
+     * Get the group that this record belongs to
+     */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
+    }
 
     /**
      * Get the user that owns this statement record
@@ -110,5 +129,16 @@ class StatementRecord extends Model
     public function getFormattedBalanceAfterAttribute(): string
     {
         return ($this->balance_after >= 0 ? '+' : '') . '$' . number_format($this->balance_after, 2);
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (!$model->uuid) {
+                $model->uuid = Str::uuid();
+            }
+        });
     }
 }

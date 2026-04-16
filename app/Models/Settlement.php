@@ -4,21 +4,30 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class Settlement extends Model
 {
     protected $fillable = [
+        'uuid',
+        'group_id',
         'from_user_id',
         'to_user_id',
+        'amount_cents',
         'amount',
         'settlement_date',
-        'payment_screenshot',
     ];
 
     protected $casts = [
         'settlement_date' => 'date',
+        'amount_cents' => 'integer',
         'amount' => 'decimal:2',
     ];
+
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
+    }
 
     public function fromUser(): BelongsTo
     {
@@ -28,5 +37,16 @@ class Settlement extends Model
     public function toUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'to_user_id');
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (!$model->uuid) {
+                $model->uuid = Str::uuid();
+            }
+        });
     }
 }
