@@ -1,10 +1,3 @@
-# Subdomain-local PHP version override for cPanel MultiPHP.
-# This only affects requests served from this document root.
-# Use this when the subdomain points directly to the Laravel `public` folder.
-<IfModule mime_module>
-    AddHandler application/x-httpd-ea-php84 .php .php8 .phtml
-</IfModule>
-
 # PHP Upload Configuration
 php_value upload_max_filesize 20M
 php_value post_max_size 21M
