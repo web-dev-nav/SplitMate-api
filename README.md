@@ -358,6 +358,38 @@ php artisan test --coverage
    php artisan view:cache
    ```
 
+### Composer Script Reference (Commented)
+
+The following is kept as a reference block only (commented out), not the active production default:
+
+```json
+{
+  "scripts": {
+    "post-autoload-dump": [
+      "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+      "@php artisan package:discover --ansi"
+    ],
+    "post-install-cmd": [
+      "@php artisan migrate --force",
+      "@php artisan config:cache",
+      "@php artisan route:cache",
+      "@php artisan view:cache",
+      "@php artisan event:cache",
+      "@php artisan db:seed --force --no-interaction"
+    ],
+    "post-update-cmd": [
+      "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
+      "@php artisan migrate --force",
+      "@php artisan config:cache",
+      "@php artisan route:cache",
+      "@php artisan view:cache",
+      "@php artisan event:cache",
+      "@php artisan db:seed --force --no-interaction"
+    ]
+  }
+}
+```
+
 ## 🌐 Hosting Configuration
 
 ### Removing `/public` from URLs
