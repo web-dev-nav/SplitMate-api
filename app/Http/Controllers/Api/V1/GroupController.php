@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Group;
+use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 
 class GroupController extends Controller
@@ -18,7 +19,7 @@ class GroupController extends Controller
             ->get();
 
         return response()->json([
-            'groups' => $groups->map(fn($group) => $this->formatGroup($group)),
+            'groups' => $groups->map(fn($group) => ApiPayload::group($group))->values(),
         ]);
     }
 
@@ -44,9 +45,10 @@ class GroupController extends Controller
             'role' => 'admin',
             'is_active' => true,
         ]);
+        $group->load('creator');
 
         return response()->json([
-            'group' => $this->formatGroup($group),
+            'group' => ApiPayload::group($group),
             'invite_code' => $group->invite_code,
         ], 201);
     }
@@ -63,8 +65,10 @@ class GroupController extends Controller
             ], 403);
         }
 
+        $group->load('creator');
+
         return response()->json([
-            'group' => $this->formatGroup($group),
+            'group' => ApiPayload::group($group),
         ]);
     }
 
@@ -97,9 +101,10 @@ class GroupController extends Controller
             'role' => 'member',
             'is_active' => true,
         ]);
+        $group->load('creator');
 
         return response()->json([
-            'group' => $this->formatGroup($group),
+            'group' => ApiPayload::group($group),
             'message' => 'Successfully joined group',
         ], 200);
     }
@@ -121,30 +126,7 @@ class GroupController extends Controller
             ->get();
 
         return response()->json([
-            'members' => $members->map(fn($user) => [
-                'user_id' => $user->uuid,
-                'name' => $user->name,
-                'email' => $user->email,
-                'is_active' => $user->pivot->is_active,
-                'role' => $user->pivot->role,
-                'joined_at' => $user->pivot->joined_at,
-            ]),
+            'members' => $members->map(fn($user) => ApiPayload::groupMember($user))->values(),
         ]);
-    }
-
-    /**
-     * Format a group for response.
-     */
-    private function formatGroup(Group $group): array
-    {
-        return [
-            'id' => $group->id,
-            'name' => $group->name,
-            'invite_code' => $group->invite_code,
-            'currency_code' => $group->currency_code,
-            'created_by_user_id' => $group->created_by_user_id,
-            'created_at' => $group->created_at,
-            'updated_at' => $group->updated_at,
-        ];
     }
 }

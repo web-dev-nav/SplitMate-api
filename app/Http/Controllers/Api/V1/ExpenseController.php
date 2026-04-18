@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\Group;
 use App\Services\BalanceService;
+use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -26,7 +27,7 @@ class ExpenseController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'expenses' => $expenses->items(),
+            'expenses' => collect($expenses->items())->map(fn (Expense $expense) => ApiPayload::expense($expense))->values(),
             'pagination' => [
                 'total' => $expenses->total(),
                 'per_page' => $expenses->perPage(),
@@ -76,9 +77,10 @@ class ExpenseController extends Controller
             'participant_ids' => $participantIds,
             'user_count_at_time' => $group->members()->wherePivot('is_active', true)->count(),
         ]);
+        $expense->load('paidByUser');
 
         return response()->json([
-            'expense' => $this->formatExpense($expense),
+            'expense' => ApiPayload::expense($expense),
         ], 201);
     }
 
@@ -92,7 +94,7 @@ class ExpenseController extends Controller
         }
 
         return response()->json([
-            'expense' => $this->formatExpense($expense),
+            'expense' => ApiPayload::expense($expense->load('paidByUser')),
         ]);
     }
 
@@ -115,7 +117,7 @@ class ExpenseController extends Controller
         ]);
 
         return response()->json([
-            'expense' => $this->formatExpense($expense),
+            'expense' => ApiPayload::expense($expense->load('paidByUser')),
         ]);
     }
 
@@ -137,7 +139,7 @@ class ExpenseController extends Controller
             $expense->update(['receipt_photo' => $path]);
 
             return response()->json([
-                'expense' => $this->formatExpense($expense),
+                'expense' => ApiPayload::expense($expense->load('paidByUser')),
                 'message' => 'Receipt uploaded successfully',
             ]);
         } catch (\Exception $e) {
@@ -164,27 +166,8 @@ class ExpenseController extends Controller
         $expense->update(['receipt_photo' => null]);
 
         return response()->json([
-            'expense' => $this->formatExpense($expense),
+            'expense' => ApiPayload::expense($expense->load('paidByUser')),
             'message' => 'Receipt deleted successfully',
         ]);
-    }
-
-    /**
-     * Format expense for response.
-     */
-    private function formatExpense(Expense $expense): array
-    {
-        return [
-            'id' => $expense->uuid,
-            'title' => $expense->title,
-            'amount_cents' => $expense->amount_cents,
-            'paid_by_user_id' => $expense->paidByUser?->uuid,
-            'paid_by_user_name' => $expense->paidByUser?->name,
-            'expense_date' => $expense->expense_date->toDateString(),
-            'category' => $expense->category,
-            'participant_ids' => $expense->participant_ids ?? [],
-            'receipt_photo' => $expense->receipt_photo ? url('storage/' . $expense->receipt_photo) : null,
-            'created_at' => $expense->created_at->toIso8601String(),
-        ];
     }
 }

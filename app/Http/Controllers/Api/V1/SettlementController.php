@@ -7,6 +7,7 @@ use App\Models\Group;
 use App\Models\Settlement;
 use App\Models\User;
 use App\Services\BalanceService;
+use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +29,7 @@ class SettlementController extends Controller
             ->paginate(20);
 
         return response()->json([
-            'settlements' => $settlements->items(),
+            'settlements' => collect($settlements->items())->map(fn (Settlement $settlement) => ApiPayload::settlement($settlement))->values(),
             'pagination' => [
                 'total' => $settlements->total(),
                 'per_page' => $settlements->perPage(),
@@ -65,7 +66,7 @@ class SettlementController extends Controller
         }
 
         // Validate that payment doesn't exceed outstanding debt
-        $maxPayable = $this->balanceService->maxPayable($group, $fromUser->id, $toUser->id);
+        $maxPayable = $this->balanceService->maxPayable($group, $fromUser->uuid, $toUser->uuid);
 
         if ($validated['amount_cents'] > $maxPayable) {
             throw ValidationException::withMessages([
@@ -82,9 +83,10 @@ class SettlementController extends Controller
             'amount_cents' => $validated['amount_cents'],
             'settlement_date' => $validated['settlement_date'],
         ]);
+        $settlement->load(['fromUser', 'toUser']);
 
         return response()->json([
-            'settlement' => $this->formatSettlement($settlement),
+            'settlement' => ApiPayload::settlement($settlement),
         ], 201);
     }
 
@@ -98,7 +100,7 @@ class SettlementController extends Controller
         }
 
         return response()->json([
-            'settlement' => $this->formatSettlement($settlement),
+            'settlement' => ApiPayload::settlement($settlement->load(['fromUser', 'toUser'])),
         ]);
     }
 
@@ -115,29 +117,12 @@ class SettlementController extends Controller
         $fromUser = User::where('uuid', $validated['from_user_id'])->firstOrFail();
         $toUser = User::where('uuid', $validated['to_user_id'])->firstOrFail();
 
-        $maxAmount = $this->balanceService->maxPayable($group, $fromUser->id, $toUser->id);
+        $maxAmount = $this->balanceService->maxPayable($group, $fromUser->uuid, $toUser->uuid);
 
         return response()->json([
             'from_user_id' => $fromUser->uuid,
             'to_user_id' => $toUser->uuid,
             'max_payable_cents' => $maxAmount,
         ]);
-    }
-
-    /**
-     * Format settlement for response.
-     */
-    private function formatSettlement(Settlement $settlement): array
-    {
-        return [
-            'id' => $settlement->uuid,
-            'from_user_id' => $settlement->fromUser?->uuid,
-            'from_user_name' => $settlement->fromUser?->name,
-            'to_user_id' => $settlement->toUser?->uuid,
-            'to_user_name' => $settlement->toUser?->name,
-            'amount_cents' => $settlement->amount_cents,
-            'settlement_date' => $settlement->settlement_date->toDateString(),
-            'created_at' => $settlement->created_at->toIso8601String(),
-        ];
     }
 }

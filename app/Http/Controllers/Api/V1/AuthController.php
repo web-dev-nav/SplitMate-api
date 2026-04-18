@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -34,12 +35,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user' => [
-                'id' => $user->uuid,
-                'name' => $user->name,
-                'email' => $user->email,
-                'is_active' => $user->is_active,
-            ],
+            'user' => ApiPayload::user($user),
         ], 201);
     }
 
@@ -65,12 +61,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user' => [
-                'id' => $user->uuid,
-                'name' => $user->name,
-                'email' => $user->email,
-                'is_active' => $user->is_active,
-            ],
+            'user' => ApiPayload::user($user),
         ]);
     }
 
@@ -81,12 +72,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        return response()->json([
-            'id' => $user->uuid,
-            'name' => $user->name,
-            'email' => $user->email,
-            'is_active' => $user->is_active,
-        ]);
+        return response()->json(ApiPayload::user($user));
     }
 
     /**

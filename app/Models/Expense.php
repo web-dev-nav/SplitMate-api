@@ -40,6 +40,11 @@ class Expense extends Model
         return $this->belongsTo(User::class, 'paid_by_user_id');
     }
 
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
     protected static function boot()
     {
         parent::boot();

@@ -39,6 +39,11 @@ class Settlement extends Model
         return $this->belongsTo(User::class, 'to_user_id');
     }
 
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
+
     protected static function boot()
     {
         parent::boot();

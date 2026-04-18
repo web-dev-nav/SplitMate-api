@@ -359,6 +359,7 @@ class BalanceService
                 }
 
                 $suggestions[] = [
+                    'id' => "{$summary['user_id']}:{$toUserId}",
                     'from_user_id' => $summary['user_id'],
                     'to_user_id' => $toUserId,
                     'from_user_name' => $summary['user_name'],

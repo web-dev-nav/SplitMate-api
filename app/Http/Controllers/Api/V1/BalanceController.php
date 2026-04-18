@@ -23,8 +23,8 @@ class BalanceController extends Controller
         $snapshot = $this->balanceService->calculateSnapshot($group);
 
         return response()->json([
-            'summaries' => $snapshot['summaries'],
-            'suggestions' => $snapshot['suggestions'],
+            'summaries' => array_values($snapshot['summaries']),
+            'suggestions' => array_values($snapshot['suggestions']),
         ]);
     }
 }
