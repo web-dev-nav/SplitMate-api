@@ -12,11 +12,27 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('expenses', function (Blueprint $table) {
-            $table->string('uuid')->unique()->nullable();
-            $table->string('group_id')->nullable();
-            $table->string('title')->nullable();
-            $table->bigInteger('amount_cents')->nullable();
-            $table->string('category')->default('other');
+            if (!Schema::hasColumn('expenses', 'uuid')) {
+                $table->string('uuid')->unique()->nullable();
+            }
+            if (!Schema::hasColumn('expenses', 'group_id')) {
+                $table->string('group_id')->nullable();
+            }
+            if (!Schema::hasColumn('expenses', 'title')) {
+                $table->string('title')->nullable();
+            }
+            if (!Schema::hasColumn('expenses', 'amount_cents')) {
+                $table->bigInteger('amount_cents')->nullable();
+            }
+            if (!Schema::hasColumn('expenses', 'category')) {
+                $table->string('category')->default('other');
+            }
+        });
+
+        Schema::table('expenses', function (Blueprint $table) {
+            if (Schema::hasColumn('expenses', 'payback_to_user_id')) {
+                $table->dropForeign(['payback_to_user_id']);
+            }
         });
 
         Schema::table('expenses', function (Blueprint $table) {
