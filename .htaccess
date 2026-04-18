@@ -1,0 +1,23 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Remove /public from public URLs permanently.
+    RewriteRule ^public/?$ / [R=301,L]
+    RewriteRule ^public/(.*)$ /$1 [R=301,L]
+
+    # Serve direct asset/file requests from the public folder.
+    RewriteCond %{DOCUMENT_ROOT}/public/%{REQUEST_URI} -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}/public/%{REQUEST_URI} -d
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # Route all application requests through the root front controller.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<FilesMatch "^(\.env|artisan|composer\.(json|lock)|phpunit\.xml|README\.md)$">
+    Require all denied
+</FilesMatch>
