@@ -40,6 +40,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/groups/{group}/members/add-by-email', [GroupController::class, 'addMemberByEmail']);
             Route::post('/groups/{group}/members/add', [GroupController::class, 'addMemberByEmail']);
             Route::post('/groups/{group}/members', [GroupController::class, 'addMemberByEmail']);
+            Route::post('/groups/{group}/members/{user}/remove', [GroupMemberController::class, 'remove']);
             Route::post('/groups/{group}/members/deactivate', [GroupMemberController::class, 'deactivate']);
             Route::post('/groups/{group}/members/reactivate', [GroupMemberController::class, 'reactivate']);
 
