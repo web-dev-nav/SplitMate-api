@@ -18,6 +18,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/users/{user}/toggle', [DashboardController::class, 'toggleUser'])->name('users.toggle');
         Route::post('/users/{user}/delete', [DashboardController::class, 'deleteUser'])->name('users.delete');
         Route::get('/groups', [DashboardController::class, 'groups'])->name('groups');
+        Route::post('/groups/{group}/delete', [DashboardController::class, 'deleteGroup'])->name('groups.delete');
         Route::get('/groups/{group}', [DashboardController::class, 'showGroup'])->name('groups.show');
         Route::get('/api-access', [DashboardController::class, 'apiDocs'])->name('api-docs');
     });

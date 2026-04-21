@@ -4,6 +4,15 @@
 ])
 
 @section('content')
+    <div class="panel" style="margin-bottom: 18px;">
+        <h2>Danger Zone</h2>
+        <form method="POST" action="{{ route('admin.groups.delete', $group) }}"
+              onsubmit="return confirm('Delete this group completely? This cannot be undone.');">
+            @csrf
+            <button class="button danger" type="submit">Delete Group</button>
+        </form>
+    </div>
+
     <div class="grid cards">
         <div class="panel">
             <div class="kicker">Group Id</div>

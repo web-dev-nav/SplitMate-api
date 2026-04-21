@@ -16,6 +16,7 @@
                         <th>Owner</th>
                         <th>Invite</th>
                         <th>Counts</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -28,6 +29,13 @@
                             <td>{{ optional($group->creator)->name ?: 'Unknown' }}</td>
                             <td><span class="badge primary">{{ $group->invite_code }}</span></td>
                             <td>{{ $group->members_count }} members · {{ $group->expenses_count }} expenses · {{ $group->settlements_count }} settlements</td>
+                            <td>
+                                <form method="POST" action="{{ route('admin.groups.delete', $group) }}"
+                                      onsubmit="return confirm('Delete this group completely? This cannot be undone.');">
+                                    @csrf
+                                    <button class="button danger" type="submit">Delete Group</button>
+                                </form>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

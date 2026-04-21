@@ -105,6 +105,16 @@ class DashboardController extends Controller
         return view('admin.groups', compact('groups'));
     }
 
+    public function deleteGroup(Request $request, Group $group): RedirectResponse
+    {
+        DB::transaction(function () use ($group) {
+            GroupInvitation::where('group_id', $group->id)->delete();
+            $group->delete();
+        });
+
+        return redirect()->route('admin.groups')->with('status', 'Group deleted successfully.');
+    }
+
     public function showGroup(Group $group): View
     {
         $group->load([
