@@ -30,6 +30,7 @@ class ApiPayload
             'name' => $group->name,
             'invite_code' => $group->invite_code,
             'currency_code' => $group->currency_code,
+            'expense_categories' => $group->expense_categories ?: \App\Models\Group::defaultExpenseCategories(),
             'created_by_user_id' => optional($group->creator)?->uuid ?? (string) $group->created_by_user_id,
             'created_at' => optional($group->created_at)?->toIso8601String(),
             'updated_at' => optional($group->updated_at)?->toIso8601String(),

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 
 class GroupController extends Controller
 {
@@ -43,6 +44,7 @@ class GroupController extends Controller
             'invite_code' => Group::generateInviteCode(),
             'created_by_user_id' => $request->user()->id,
             'currency_code' => $validated['currency_code'],
+            'expense_categories' => Group::defaultExpenseCategories(),
         ]);
 
         // Add the creator as an admin member
@@ -142,6 +144,55 @@ class GroupController extends Controller
     }
 
     /**
+     * Get categories configured for this group.
+     */
+    public function categories(Request $request, Group $group)
+    {
+        return response()->json([
+            'categories' => $group->expense_categories ?: Group::defaultExpenseCategories(),
+        ]);
+    }
+
+    /**
+     * Update categories for this group (creator only).
+     */
+    public function updateCategories(Request $request, Group $group)
+    {
+        if (!$this->isGroupCreator($request, $group)) {
+            return response()->json([
+                'message' => 'Only the group creator can manage categories.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'categories' => 'required|array|min:1',
+            'categories.*' => 'required|string|min:1|max:50',
+        ]);
+
+        $normalized = collect($validated['categories'])
+            ->map(fn ($item) => strtolower(trim($item)))
+            ->filter(fn ($item) => $item !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($normalized)) {
+            return response()->json([
+                'message' => 'At least one category is required.',
+            ], 422);
+        }
+
+        $group->update([
+            'expense_categories' => $normalized,
+        ]);
+
+        return response()->json([
+            'categories' => $normalized,
+            'message' => 'Categories updated successfully.',
+        ]);
+    }
+
+    /**
      * Rename a group (admin only).
      */
     public function update(Request $request, Group $group)
@@ -231,12 +282,14 @@ class GroupController extends Controller
         $acceptUrl = url('/api/v1/invitations/accept/'.$token);
 
         try {
-            Mail::raw(
-                "You've been invited to join the SplitMate group \"{$group->name}\".\n\nClick to accept: {$acceptUrl}\n\nThis link expires in 7 days.",
-                function ($message) use ($normalizedEmail, $group) {
-                    $message->to($normalizedEmail)->subject("Invitation to join {$group->name} on SplitMate");
-                }
-            );
+            Mail::send('emails.group-invitation', [
+                'groupName' => $group->name,
+                'inviterName' => $request->user()->name,
+                'acceptUrl' => $acceptUrl,
+                'expiresAt' => now()->addDays(7),
+            ], function ($message) use ($normalizedEmail, $group) {
+                $message->to($normalizedEmail)->subject("Invitation to join {$group->name} on SplitMate");
+            });
         } catch (\Throwable $e) {
             // Don't fail API in local/dev when SMTP is not configured.
         }
@@ -250,7 +303,7 @@ class GroupController extends Controller
     /**
      * Accept invitation from email link.
      */
-    public function acceptInvitation(string $token)
+    public function acceptInvitation(string $token): View
     {
         $invitation = GroupInvitation::where('token', $token)
             ->whereNull('accepted_at')
@@ -259,9 +312,12 @@ class GroupController extends Controller
             ->first();
 
         if (!$invitation) {
-            return response()->json([
-                'message' => 'Invitation is invalid or expired.',
-            ], 404);
+            return view('invitations.accept-result', [
+                'status' => 'error',
+                'title' => 'Invitation Expired',
+                'message' => 'This invitation link is invalid or has expired.',
+                'groupName' => null,
+            ]);
         }
 
         $email = strtolower(trim($invitation->email));
@@ -298,9 +354,11 @@ class GroupController extends Controller
             'accepted_at' => now(),
         ]);
 
-        return response()->json([
+        return view('invitations.accept-result', [
+            'status' => 'success',
+            'title' => 'You Are In!',
             'message' => "Invitation accepted. You are now a member of {$invitation->group->name}.",
-            'group_id' => $invitation->group->id,
+            'groupName' => $invitation->group->name,
         ]);
     }
 
@@ -334,5 +392,15 @@ class GroupController extends Controller
             ->where('users.id', $user->id)
             ->wherePivot('is_active', true)
             ->exists();
+    }
+
+    private function isGroupCreator(Request $request, Group $group): bool
+    {
+        $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
+        return (string) $group->created_by_user_id === (string) $user->id;
     }
 }

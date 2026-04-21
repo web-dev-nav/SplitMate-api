@@ -22,6 +22,7 @@ class Group extends Model
         'invite_code',
         'created_by_user_id',
         'currency_code',
+        'expense_categories',
     ];
 
     protected $hidden = [];
@@ -31,6 +32,7 @@ class Group extends Model
         return [
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
+            'expense_categories' => 'array',
         ];
     }
 
@@ -94,6 +96,20 @@ class Group extends Model
         } while (self::where('invite_code', $code)->exists());
 
         return $code;
+    }
+
+    public static function defaultExpenseCategories(): array
+    {
+        return [
+            'food',
+            'transport',
+            'entertainment',
+            'utilities',
+            'accommodation',
+            'shopping',
+            'healthcare',
+            'other',
+        ];
     }
 
     /**

@@ -52,17 +52,47 @@ class ExpenseController extends Controller
             'participant_ids.*' => 'string|exists:users,uuid',
         ]);
 
+        $activeMemberUuids = $group->members()
+            ->wherePivot('is_active', true)
+            ->pluck('uuid')
+            ->toArray();
+
+        $category = strtolower(trim($validated['category']));
+        $allowedCategories = $group->expense_categories ?: Group::defaultExpenseCategories();
+        if (!in_array($category, $allowedCategories, true)) {
+            return response()->json([
+                'message' => 'The selected category is invalid for this group.',
+                'errors' => [
+                    'category' => ['The selected category is invalid for this group.'],
+                ],
+            ], 422);
+        }
+
         // Convert user UUIDs to user IDs
         $paidByUser = \App\Models\User::where('uuid', $validated['paid_by_user_id'])->firstOrFail();
+        if (!in_array($paidByUser->uuid, $activeMemberUuids, true)) {
+            return response()->json([
+                'message' => 'Payer must be an active group member.',
+                'errors' => [
+                    'paid_by_user_id' => ['Payer must be an active group member.'],
+                ],
+            ], 422);
+        }
 
         // Get active group members if participants not specified
         if (empty($validated['participant_ids'])) {
-            $participantIds = $group->members()
-                ->wherePivot('is_active', true)
-                ->pluck('uuid')
-                ->toArray();
+            $participantIds = $activeMemberUuids;
         } else {
-            $participantIds = $validated['participant_ids'];
+            $participantIds = array_values(array_unique($validated['participant_ids']));
+            $invalidParticipants = array_values(array_diff($participantIds, $activeMemberUuids));
+            if (!empty($invalidParticipants)) {
+                return response()->json([
+                    'message' => 'All participants must be active members of this group.',
+                    'errors' => [
+                        'participant_ids' => ['All participants must be active members of this group.'],
+                    ],
+                ], 422);
+            }
         }
 
         // Create expense
@@ -76,9 +106,9 @@ class ExpenseController extends Controller
             'amount' => round($validated['amount_cents'] / 100, 2),
             'paid_by_user_id' => $paidByUser->id,
             'expense_date' => $validated['expense_date'],
-            'category' => $validated['category'],
+            'category' => $category,
             'participant_ids' => $participantIds,
-            'user_count_at_time' => $group->members()->wherePivot('is_active', true)->count(),
+            'user_count_at_time' => count($activeMemberUuids),
         ]);
         $expense->load('paidByUser');
 
