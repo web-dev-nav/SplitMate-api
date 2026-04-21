@@ -193,10 +193,17 @@ class GroupController extends Controller
         }
 
         $validated = $request->validate([
-            'email' => 'required|string|email|exists:users,email',
+            'email' => 'required|string|email',
         ]);
 
-        $user = User::where('email', $validated['email'])->firstOrFail();
+        $normalizedEmail = strtolower(trim($validated['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'No user found with that email. Ask them to register first.',
+            ], 404);
+        }
 
         if (!$user->email_verified_at) {
             return response()->json([

@@ -70,7 +70,10 @@ class ExpenseController extends Controller
             'uuid' => Str::uuid(),
             'group_id' => $group->id,
             'title' => $validated['title'],
+            // Backward compatibility for legacy schema where description/amount are required.
+            'description' => $validated['title'],
             'amount_cents' => $validated['amount_cents'],
+            'amount' => round($validated['amount_cents'] / 100, 2),
             'paid_by_user_id' => $paidByUser->id,
             'expense_date' => $validated['expense_date'],
             'category' => $validated['category'],
