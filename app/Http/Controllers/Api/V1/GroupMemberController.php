@@ -34,7 +34,6 @@ class GroupMemberController extends Controller
 
         $targetMember = $group->members()
             ->where('users.id', $user->id)
-            ->wherePivot('is_active', true)
             ->exists();
 
         if (!$targetMember) {
@@ -43,9 +42,8 @@ class GroupMemberController extends Controller
             ], 404);
         }
 
-        $group->members()->updateExistingPivot($user->id, [
-            'is_active' => false,
-        ]);
+        // Hard-remove from this group only (keep user record in users table).
+        $group->members()->detach($user->id);
 
         return response()->json([
             'message' => 'Member removed successfully.',
@@ -115,7 +113,12 @@ class GroupMemberController extends Controller
             return false;
         }
 
-        if ((string) $group->created_by_user_id === (string) $actor->id) {
+        // Creator can always manage members (support legacy id/uuid variations).
+        if ((string) $group->created_by_user_id === (string) $actor->id
+            || (string) $group->created_by_user_id === (string) ($actor->uuid ?? '')
+            || (string) optional($group->creator)->id === (string) $actor->id
+            || (string) optional($group->creator)->uuid === (string) ($actor->uuid ?? '')
+        ) {
             return true;
         }
 
