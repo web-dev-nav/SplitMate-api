@@ -30,7 +30,7 @@
                             <td><span class="badge primary">{{ $group->invite_code }}</span></td>
                             <td>{{ $group->members_count }} members · {{ $group->expenses_count }} expenses · {{ $group->settlements_count }} settlements</td>
                             <td>
-                                <form method="POST" action="{{ route('admin.groups.delete', $group) }}"
+                                <form method="POST" action="{{ url('/admin/groups/'.$group->id.'/delete') }}"
                                       onsubmit="return confirm('Delete this group completely? This cannot be undone.');">
                                     @csrf
                                     <button class="button danger" type="submit">Delete Group</button>

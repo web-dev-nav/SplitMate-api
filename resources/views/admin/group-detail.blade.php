@@ -6,7 +6,7 @@
 @section('content')
     <div class="panel" style="margin-bottom: 18px;">
         <h2>Danger Zone</h2>
-        <form method="POST" action="{{ route('admin.groups.delete', $group) }}"
+        <form method="POST" action="{{ url('/admin/groups/'.$group->id.'/delete') }}"
               onsubmit="return confirm('Delete this group completely? This cannot be undone.');">
             @csrf
             <button class="button danger" type="submit">Delete Group</button>
