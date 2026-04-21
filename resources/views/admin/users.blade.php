@@ -34,12 +34,22 @@
                             </td>
                             <td>{{ optional($user->created_at)->format('Y-m-d H:i') }}</td>
                             <td>
-                                <form method="POST" action="{{ route('admin.users.toggle', $user) }}">
-                                    @csrf
-                                    <button class="button {{ $user->is_active ? 'warn' : 'success' }}" type="submit">
-                                        {{ $user->is_active ? 'Deactivate' : 'Reactivate' }}
-                                    </button>
-                                </form>
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <form method="POST" action="{{ route('admin.users.toggle', $user) }}">
+                                        @csrf
+                                        <button class="button {{ $user->is_active ? 'warn' : 'success' }}" type="submit">
+                                            {{ $user->is_active ? 'Deactivate' : 'Reactivate' }}
+                                        </button>
+                                    </form>
+
+                                    <form method="POST" action="{{ route('admin.users.delete', $user) }}"
+                                          onsubmit="return confirm('Delete this user account? This cannot be undone.');">
+                                        @csrf
+                                        <button class="button danger" type="submit">
+                                            Delete User
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @endforeach

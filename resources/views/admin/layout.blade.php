@@ -56,6 +56,7 @@
         .button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
         .button.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
         .button.success { background: var(--success-soft); color: var(--success); border-color: transparent; }
+        .button.danger { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
         .stack { display: grid; gap: 12px; }
         .kicker { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
         .flash { margin-bottom: 18px; padding: 12px 14px; border-radius: 12px; background: var(--success-soft); color: var(--success); }

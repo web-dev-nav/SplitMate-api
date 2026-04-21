@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\Group;
+use App\Models\GroupInvitation;
 use App\Models\Settlement;
 use App\Models\StatementRecord;
 use App\Models\User;
+use App\Models\EmailVerificationCode;
 use App\Services\BalanceService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -63,6 +66,32 @@ class DashboardController extends Controller
         ]);
 
         return back()->with('status', 'User status updated.');
+    }
+
+    public function deleteUser(Request $request, User $user): RedirectResponse
+    {
+        if (Group::where('created_by_user_id', $user->id)->exists()) {
+            return back()->with('status', 'Cannot delete user: they are creator of one or more groups.');
+        }
+
+        $hasTransactions = Expense::where('paid_by_user_id', $user->id)->exists()
+            || Settlement::where('from_user_id', $user->id)->orWhere('to_user_id', $user->id)->exists()
+            || StatementRecord::where('user_id', $user->id)->exists();
+
+        if ($hasTransactions) {
+            return back()->with('status', 'Cannot delete user: user has transaction history.');
+        }
+
+        DB::transaction(function () use ($user) {
+            $user->groups()->detach();
+            $user->tokens()->delete();
+            EmailVerificationCode::where('user_id', $user->id)->delete();
+            GroupInvitation::whereRaw('LOWER(email) = ?', [strtolower((string) $user->email)])->delete();
+            GroupInvitation::where('invited_by_user_id', $user->id)->delete();
+            $user->delete();
+        });
+
+        return back()->with('status', 'User deleted successfully.');
     }
 
     public function groups(): View
