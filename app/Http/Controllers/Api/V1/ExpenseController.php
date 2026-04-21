@@ -47,7 +47,7 @@ class ExpenseController extends Controller
             'amount_cents' => 'required|integer|min:1',
             'paid_by_user_id' => 'required|string|exists:users,uuid',
             'expense_date' => 'required|date',
-            'category' => 'required|in:food,transport,entertainment,utilities,accommodation,shopping,healthcare,other',
+            'category' => 'required|string|max:50',
             'participant_ids' => 'nullable|array',
             'participant_ids.*' => 'string|exists:users,uuid',
         ]);
