@@ -37,6 +37,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/groups/{group}/delete', [GroupController::class, 'destroy']);
             Route::get('/groups/{group}/members', [GroupController::class, 'members']);
             Route::post('/groups/{group}/members/add-by-email', [GroupController::class, 'addMemberByEmail']);
+            Route::post('/groups/{group}/members/add', [GroupController::class, 'addMemberByEmail']);
+            Route::post('/groups/{group}/members', [GroupController::class, 'addMemberByEmail']);
             Route::post('/groups/{group}/members/deactivate', [GroupMemberController::class, 'deactivate']);
             Route::post('/groups/{group}/members/reactivate', [GroupMemberController::class, 'reactivate']);
 

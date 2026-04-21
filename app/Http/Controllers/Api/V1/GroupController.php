@@ -7,6 +7,7 @@ use App\Models\Group;
 use App\Models\User;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class GroupController extends Controller
 {
@@ -200,9 +201,9 @@ class GroupController extends Controller
         $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
 
         if (!$user) {
-            return response()->json([
-                'message' => 'No user found with that email. Ask them to register first.',
-            ], 404);
+            throw ValidationException::withMessages([
+                'email' => ['No user found with that email. Ask them to register first.'],
+            ]);
         }
 
         if (!$user->email_verified_at) {
