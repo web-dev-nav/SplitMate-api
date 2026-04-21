@@ -43,16 +43,6 @@ class GroupMemberController extends Controller
             ], 404);
         }
 
-        $activeCount = $group->members()
-            ->wherePivot('is_active', true)
-            ->count();
-
-        if ($activeCount <= 2) {
-            return response()->json([
-                'message' => 'Cannot remove member - minimum 2 active members required.',
-            ], 400);
-        }
-
         $group->members()->updateExistingPivot($user->id, [
             'is_active' => false,
         ]);
