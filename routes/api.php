@@ -14,6 +14,7 @@ Route::prefix('v1')->group(function () {
     // Authentication routes (public)
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::get('/invitations/accept/{token}', [GroupController::class, 'acceptInvitation']);
 
     // Protected routes (require auth:sanctum)
     Route::middleware('auth:sanctum')->group(function () {

@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Group;
+use App\Models\GroupInvitation;
 use App\Models\User;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class GroupController extends Controller
 {
@@ -183,7 +186,8 @@ class GroupController extends Controller
     }
 
     /**
-     * Add an existing user to the group by verified email (admin only).
+     * Send email invitation to join a group (admin only).
+     * User becomes a member only after clicking the invitation link.
      */
     public function addMemberByEmail(Request $request, Group $group)
     {
@@ -198,38 +202,106 @@ class GroupController extends Controller
         ]);
 
         $normalizedEmail = strtolower(trim($validated['email']));
-        $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+        $existingMember = $group->members()
+            ->whereRaw('LOWER(users.email) = ?', [$normalizedEmail])
+            ->wherePivot('is_active', true)
+            ->exists();
 
-        if (!$user) {
-            throw ValidationException::withMessages([
-                'email' => ['No user found with that email. Ask them to register first.'],
-            ]);
-        }
-
-        if (!$user->email_verified_at) {
+        if ($existingMember) {
             return response()->json([
-                'message' => 'User email must be verified before joining the group.',
-            ], 422);
-        }
-
-        if ($group->members()->where('user_id', $user->id)->exists()) {
-            return response()->json([
-                'message' => 'User is already a member of this group.',
+                'message' => 'This email is already an active member of the group.',
             ], 400);
         }
 
-        $group->members()->attach($user->id, [
-            'role' => 'member',
-            'is_active' => true,
-            'joined_at' => now(),
+        GroupInvitation::where('group_id', $group->id)
+            ->whereRaw('LOWER(email) = ?', [$normalizedEmail])
+            ->whereNull('accepted_at')
+            ->delete();
+
+        $token = Str::random(64);
+
+        GroupInvitation::create([
+            'group_id' => $group->id,
+            'invited_by_user_id' => $request->user()->id,
+            'email' => $normalizedEmail,
+            'token' => $token,
+            'expires_at' => now()->addDays(7),
         ]);
 
-        $member = $group->members()->where('users.id', $user->id)->firstOrFail();
+        $acceptUrl = url('/api/v1/invitations/accept/'.$token);
+
+        try {
+            Mail::raw(
+                "You've been invited to join the SplitMate group \"{$group->name}\".\n\nClick to accept: {$acceptUrl}\n\nThis link expires in 7 days.",
+                function ($message) use ($normalizedEmail, $group) {
+                    $message->to($normalizedEmail)->subject("Invitation to join {$group->name} on SplitMate");
+                }
+            );
+        } catch (\Throwable $e) {
+            // Don't fail API in local/dev when SMTP is not configured.
+        }
 
         return response()->json([
-            'member' => ApiPayload::groupMember($member),
-            'message' => 'Member added successfully.',
-        ], 201);
+            'message' => 'Invitation email sent. Member will appear after accepting the email link.',
+            'accept_url' => app()->environment('local') ? $acceptUrl : null,
+        ], 202);
+    }
+
+    /**
+     * Accept invitation from email link.
+     */
+    public function acceptInvitation(string $token)
+    {
+        $invitation = GroupInvitation::where('token', $token)
+            ->whereNull('accepted_at')
+            ->where('expires_at', '>', now())
+            ->with('group')
+            ->first();
+
+        if (!$invitation) {
+            return response()->json([
+                'message' => 'Invitation is invalid or expired.',
+            ], 404);
+        }
+
+        $email = strtolower(trim($invitation->email));
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if (!$user) {
+            $name = ucfirst(str_replace(['.', '_', '-'], ' ', explode('@', $email)[0] ?? 'Member'));
+            $user = User::create([
+                'uuid' => Str::uuid()->toString(),
+                'name' => $name ?: 'Member',
+                'email' => $email,
+                'password' => Hash::make(Str::random(24)),
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]);
+        } elseif (!$user->email_verified_at) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        $alreadyMember = $invitation->group->members()->where('users.id', $user->id)->first();
+        if (!$alreadyMember) {
+            $invitation->group->members()->attach($user->id, [
+                'role' => 'member',
+                'is_active' => true,
+                'joined_at' => now(),
+            ]);
+        } else {
+            $invitation->group->members()->updateExistingPivot($user->id, [
+                'is_active' => true,
+            ]);
+        }
+
+        $invitation->update([
+            'accepted_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => "Invitation accepted. You are now a member of {$invitation->group->name}.",
+            'group_id' => $invitation->group->id,
+        ]);
     }
 
     private function isGroupAdmin(Request $request, Group $group): bool
