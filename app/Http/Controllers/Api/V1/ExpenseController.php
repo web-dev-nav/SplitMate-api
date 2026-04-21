@@ -58,7 +58,7 @@ class ExpenseController extends Controller
             ->toArray();
 
         $category = strtolower(trim($validated['category']));
-        $allowedCategories = $group->expense_categories ?: Group::defaultExpenseCategories();
+        $allowedCategories = $group->expense_categories ?? Group::defaultExpenseCategories();
         if (!in_array($category, $allowedCategories, true)) {
             return response()->json([
                 'message' => 'The selected category is invalid for this group.',

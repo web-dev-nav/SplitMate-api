@@ -149,7 +149,7 @@ class GroupController extends Controller
     public function categories(Request $request, Group $group)
     {
         return response()->json([
-            'categories' => $group->expense_categories ?: Group::defaultExpenseCategories(),
+            'categories' => $group->expense_categories ?? Group::defaultExpenseCategories(),
         ]);
     }
 
@@ -165,7 +165,7 @@ class GroupController extends Controller
         }
 
         $validated = $request->validate([
-            'categories' => 'required|array|min:1',
+            'categories' => 'required|array',
             'categories.*' => 'required|string|min:1|max:50',
         ]);
 
@@ -175,12 +175,6 @@ class GroupController extends Controller
             ->unique()
             ->values()
             ->all();
-
-        if (empty($normalized)) {
-            return response()->json([
-                'message' => 'At least one category is required.',
-            ], 422);
-        }
 
         $group->update([
             'expense_categories' => $normalized,
