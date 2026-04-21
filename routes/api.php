@@ -19,6 +19,8 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
+        Route::post('/auth/email/send-code', [AuthController::class, 'sendVerificationCode']);
+        Route::post('/auth/email/verify', [AuthController::class, 'verifyEmailCode']);
 
         // Group management
         Route::get('/groups', [GroupController::class, 'index']);
@@ -29,7 +31,12 @@ Route::prefix('v1')->group(function () {
         Route::middleware('ensure.group.member')->group(function () {
             // Group info
             Route::get('/groups/{group}', [GroupController::class, 'show']);
+            Route::patch('/groups/{group}', [GroupController::class, 'update']);
+            Route::delete('/groups/{group}', [GroupController::class, 'destroy']);
+            Route::post('/groups/{group}/rename', [GroupController::class, 'update']);
+            Route::post('/groups/{group}/delete', [GroupController::class, 'destroy']);
             Route::get('/groups/{group}/members', [GroupController::class, 'members']);
+            Route::post('/groups/{group}/members/add-by-email', [GroupController::class, 'addMemberByEmail']);
             Route::post('/groups/{group}/members/deactivate', [GroupMemberController::class, 'deactivate']);
             Route::post('/groups/{group}/members/reactivate', [GroupMemberController::class, 'reactivate']);
 

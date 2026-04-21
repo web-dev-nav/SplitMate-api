@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailVerificationCode;
 use App\Models\User;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -84,6 +86,98 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Logged out successfully',
+        ]);
+    }
+
+    /**
+     * Send a one-time email verification code.
+     */
+    public function sendVerificationCode(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->email_verified_at) {
+            return response()->json([
+                'message' => 'Email is already verified.',
+            ]);
+        }
+
+        $code = (string) random_int(100000, 999999);
+
+        EmailVerificationCode::where('user_id', $user->id)
+            ->whereNull('used_at')
+            ->delete();
+
+        EmailVerificationCode::create([
+            'user_id' => $user->id,
+            'code' => $code,
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        try {
+            Mail::raw(
+                "Your SplitMate verification code is: {$code}. It expires in 15 minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)->subject('SplitMate Email Verification');
+                }
+            );
+        } catch (\Throwable $e) {
+            // Allow local/dev flows even when mail is not configured.
+        }
+
+        $response = [
+            'message' => 'Verification code sent.',
+        ];
+
+        if (app()->environment('local')) {
+            $response['debug_code'] = $code;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Verify current user's email using a one-time code.
+     */
+    public function verifyEmailCode(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|size:6',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->email_verified_at) {
+            return response()->json([
+                'message' => 'Email is already verified.',
+                'user' => ApiPayload::user($user),
+            ]);
+        }
+
+        $record = EmailVerificationCode::where('user_id', $user->id)
+            ->where('code', $validated['code'])
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
+
+        if (!$record) {
+            throw ValidationException::withMessages([
+                'code' => ['Invalid or expired verification code.'],
+            ]);
+        }
+
+        $record->update([
+            'used_at' => now(),
+        ]);
+
+        $user->forceFill([
+            'email_verified_at' => now(),
+        ])->save();
+
+        return response()->json([
+            'message' => 'Email verified successfully.',
+            'user' => ApiPayload::user($user->fresh()),
         ]);
     }
 }

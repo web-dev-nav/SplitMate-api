@@ -17,6 +17,7 @@ class ApiPayload
             'name' => $user->name,
             'email' => $user->email,
             'is_active' => (bool) $user->is_active,
+            'email_verified_at' => optional($user->email_verified_at)?->toIso8601String(),
             'created_at' => optional($user->created_at)?->toIso8601String(),
             'updated_at' => optional($user->updated_at)?->toIso8601String(),
         ];
@@ -75,6 +76,7 @@ class ApiPayload
             'to_user_id' => optional($settlement->toUser)?->uuid,
             'to_user_name' => optional($settlement->toUser)?->name,
             'amount_cents' => (int) $settlement->amount_cents,
+            'proof_photo_url' => $settlement->proof_photo ? url('storage/'.$settlement->proof_photo) : null,
             'settlement_date' => optional($settlement->settlement_date)?->toDateString(),
             'created_at' => optional($settlement->created_at)?->toIso8601String(),
             'updated_at' => optional($settlement->updated_at)?->toIso8601String(),

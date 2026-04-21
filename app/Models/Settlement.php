@@ -15,6 +15,7 @@ class Settlement extends Model
         'to_user_id',
         'amount_cents',
         'amount',
+        'proof_photo',
         'settlement_date',
     ];
 

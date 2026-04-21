@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Group;
+use App\Models\User;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 
@@ -81,6 +82,12 @@ class GroupController extends Controller
             'invite_code' => 'required|string|size:8',
         ]);
 
+        if (!$request->user()->email_verified_at) {
+            return response()->json([
+                'message' => 'Verify your email before joining a group.',
+            ], 403);
+        }
+
         $group = Group::where('invite_code', $validated['invite_code'])->first();
 
         if (!$group) {
@@ -128,5 +135,106 @@ class GroupController extends Controller
         return response()->json([
             'members' => $members->map(fn($user) => ApiPayload::groupMember($user))->values(),
         ]);
+    }
+
+    /**
+     * Rename a group (admin only).
+     */
+    public function update(Request $request, Group $group)
+    {
+        if (!$this->isGroupAdmin($request, $group)) {
+            return response()->json([
+                'message' => 'Only group admins can update group settings.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $group->update([
+            'name' => $validated['name'],
+        ]);
+        $group->load('creator');
+
+        return response()->json([
+            'group' => ApiPayload::group($group),
+            'message' => 'Group renamed successfully.',
+        ]);
+    }
+
+    /**
+     * Delete a group (admin only).
+     */
+    public function destroy(Request $request, Group $group)
+    {
+        if (!$this->isGroupAdmin($request, $group)) {
+            return response()->json([
+                'message' => 'Only group admins can delete this group.',
+            ], 403);
+        }
+
+        $group->delete();
+
+        return response()->json([
+            'message' => 'Group deleted successfully.',
+        ]);
+    }
+
+    /**
+     * Add an existing user to the group by verified email (admin only).
+     */
+    public function addMemberByEmail(Request $request, Group $group)
+    {
+        if (!$this->isGroupAdmin($request, $group)) {
+            return response()->json([
+                'message' => 'Only group admins can add members.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'email' => 'required|string|email|exists:users,email',
+        ]);
+
+        $user = User::where('email', $validated['email'])->firstOrFail();
+
+        if (!$user->email_verified_at) {
+            return response()->json([
+                'message' => 'User email must be verified before joining the group.',
+            ], 422);
+        }
+
+        if ($group->members()->where('user_id', $user->id)->exists()) {
+            return response()->json([
+                'message' => 'User is already a member of this group.',
+            ], 400);
+        }
+
+        $group->members()->attach($user->id, [
+            'role' => 'member',
+            'is_active' => true,
+            'joined_at' => now(),
+        ]);
+
+        $member = $group->members()->where('users.id', $user->id)->firstOrFail();
+
+        return response()->json([
+            'member' => ApiPayload::groupMember($member),
+            'message' => 'Member added successfully.',
+        ], 201);
+    }
+
+    private function isGroupAdmin(Request $request, Group $group): bool
+    {
+        $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
+        return $group->members()
+            ->where('users.id', $user->id)
+            ->wherePivot('role', 'admin')
+            ->wherePivot('is_active', true)
+            ->exists();
     }
 }

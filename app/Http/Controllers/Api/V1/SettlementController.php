@@ -49,6 +49,7 @@ class SettlementController extends Controller
             'to_user_id' => 'required|string|exists:users,uuid|different:from_user_id',
             'amount_cents' => 'required|integer|min:1',
             'settlement_date' => 'required|date',
+            'proof_photo' => 'required|image|max:15360',
         ]);
 
         // Get users
@@ -75,6 +76,8 @@ class SettlementController extends Controller
         }
 
         // Create settlement
+        $proofPath = $request->file('proof_photo')->store('settlement-proofs', 'public');
+
         $settlement = Settlement::create([
             'uuid' => Str::uuid(),
             'group_id' => $group->id,
@@ -82,6 +85,7 @@ class SettlementController extends Controller
             'to_user_id' => $toUser->id,
             'amount_cents' => $validated['amount_cents'],
             'settlement_date' => $validated['settlement_date'],
+            'proof_photo' => $proofPath,
         ]);
         $settlement->load(['fromUser', 'toUser']);
 
