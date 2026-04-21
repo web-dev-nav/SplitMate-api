@@ -174,7 +174,7 @@ class GroupController extends Controller
     {
         if (!$this->isGroupAdmin($request, $group)) {
             return response()->json([
-                'message' => 'Only group admins can delete this group.',
+                'message' => 'Only the group creator or an admin can delete this group.',
             ], 403);
         }
 
@@ -191,9 +191,9 @@ class GroupController extends Controller
      */
     public function addMemberByEmail(Request $request, Group $group)
     {
-        if (!$this->isGroupAdmin($request, $group)) {
+        if (!$this->isGroupMember($request, $group)) {
             return response()->json([
-                'message' => 'Only group admins can add members.',
+                'message' => 'Only active members of this group can invite new members.',
             ], 403);
         }
 
@@ -311,9 +311,27 @@ class GroupController extends Controller
             return false;
         }
 
+        // Creator can always manage the group, even if legacy pivot role data is inconsistent.
+        if ((int) $group->created_by_user_id === (int) $user->id) {
+            return true;
+        }
+
         return $group->members()
             ->where('users.id', $user->id)
             ->wherePivot('role', 'admin')
+            ->wherePivot('is_active', true)
+            ->exists();
+    }
+
+    private function isGroupMember(Request $request, Group $group): bool
+    {
+        $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
+        return $group->members()
+            ->where('users.id', $user->id)
             ->wherePivot('is_active', true)
             ->exists();
     }
