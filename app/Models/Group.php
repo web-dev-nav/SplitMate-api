@@ -20,6 +20,7 @@ class Group extends Model
         'id',
         'name',
         'invite_code',
+        'qr_join_token',
         'created_by_user_id',
         'currency_code',
         'expense_categories',
@@ -96,6 +97,18 @@ class Group extends Model
         } while (self::where('invite_code', $code)->exists());
 
         return $code;
+    }
+
+    /**
+     * Generate a unique token used for QR-based joins.
+     */
+    public static function generateQrJoinToken(): string
+    {
+        do {
+            $token = Str::random(48);
+        } while (self::where('qr_join_token', $token)->exists());
+
+        return $token;
     }
 
     public static function defaultExpenseCategories(): array

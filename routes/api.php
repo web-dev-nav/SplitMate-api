@@ -27,11 +27,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/groups', [GroupController::class, 'index']);
         Route::post('/groups', [GroupController::class, 'store']);
         Route::post('/groups/join', [GroupController::class, 'join']);
+        Route::post('/groups/join/qr', [GroupController::class, 'joinByQr']);
 
         // Group-scoped routes (require membership)
         Route::middleware('ensure.group.member')->group(function () {
             // Group info
             Route::get('/groups/{group}', [GroupController::class, 'show']);
+            Route::get('/groups/{group}/join-qr', [GroupController::class, 'qrJoinCode']);
             Route::patch('/groups/{group}', [GroupController::class, 'update']);
             Route::delete('/groups/{group}', [GroupController::class, 'destroy']);
             Route::post('/groups/{group}/rename', [GroupController::class, 'update']);

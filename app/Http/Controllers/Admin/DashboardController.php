@@ -148,6 +148,8 @@ class DashboardController extends Controller
             ['method' => 'GET', 'uri' => "{$baseUrl}/groups", 'description' => 'List authenticated user groups'],
             ['method' => 'POST', 'uri' => "{$baseUrl}/groups", 'description' => 'Create a group'],
             ['method' => 'POST', 'uri' => "{$baseUrl}/groups/join", 'description' => 'Join a group with invite code'],
+            ['method' => 'POST', 'uri' => "{$baseUrl}/groups/join/qr", 'description' => 'Join a group by scanning QR token'],
+            ['method' => 'GET', 'uri' => "{$baseUrl}/groups/{group}/join-qr", 'description' => 'Get creator-only QR payload for group join'],
             ['method' => 'GET', 'uri' => "{$baseUrl}/groups/{group}/members", 'description' => 'List active members'],
             ['method' => 'GET', 'uri' => "{$baseUrl}/groups/{group}/expenses", 'description' => 'List group expenses'],
             ['method' => 'POST', 'uri' => "{$baseUrl}/groups/{group}/expenses", 'description' => 'Create an expense'],

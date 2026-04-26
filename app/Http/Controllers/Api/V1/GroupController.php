@@ -42,6 +42,7 @@ class GroupController extends Controller
         $group = Group::create([
             'name' => $validated['name'],
             'invite_code' => Group::generateInviteCode(),
+            'qr_join_token' => Group::generateQrJoinToken(),
             'created_by_user_id' => $request->user()->id,
             'currency_code' => $validated['currency_code'],
             'expense_categories' => Group::defaultExpenseCategories(),
@@ -120,6 +121,83 @@ class GroupController extends Controller
             'group' => ApiPayload::group($group),
             'message' => 'Successfully joined group',
         ], 200);
+    }
+
+    /**
+     * Join a group using QR token.
+     */
+    public function joinByQr(Request $request)
+    {
+        $validated = $request->validate([
+            'token' => 'required|string|min:24|max:64',
+        ]);
+
+        if (!$request->user()->email_verified_at) {
+            return response()->json([
+                'message' => 'Verify your email before joining a group.',
+            ], 403);
+        }
+
+        $group = Group::where('qr_join_token', $validated['token'])->first();
+
+        if (!$group) {
+            return response()->json([
+                'message' => 'Invalid QR code',
+            ], 404);
+        }
+
+        if ($request->user()->groups->contains($group)) {
+            return response()->json([
+                'message' => 'You are already a member of this group',
+            ], 400);
+        }
+
+        $group->members()->attach($request->user()->id, [
+            'role' => 'member',
+            'is_active' => true,
+            'joined_at' => now(),
+        ]);
+        $group->load('creator');
+
+        return response()->json([
+            'group' => ApiPayload::group($group),
+            'message' => 'Successfully joined group via QR code',
+        ], 200);
+    }
+
+    /**
+     * Get creator-only QR join payload for a group.
+     */
+    public function qrJoinCode(Request $request, Group $group)
+    {
+        if (!$this->isGroupCreator($request, $group)) {
+            return response()->json([
+                'message' => 'Only the group creator can access this QR code.',
+            ], 403);
+        }
+
+        if (!$group->qr_join_token) {
+            $group->update([
+                'qr_join_token' => Group::generateQrJoinToken(),
+            ]);
+            $group->refresh();
+        }
+
+        $token = (string) $group->qr_join_token;
+        $payload = [
+            'type' => 'splitmate_group_join',
+            'group_id' => $group->id,
+            'token' => $token,
+        ];
+
+        return response()->json([
+            'group_id' => $group->id,
+            'group_name' => $group->name,
+            'token' => $token,
+            'qr_payload' => json_encode($payload, JSON_UNESCAPED_SLASHES),
+            'join_endpoint' => url('/api/v1/groups/join/qr'),
+            'deep_link' => "splitmate://join-group?token={$token}",
+        ]);
     }
 
     /**
