@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\EmailVerificationCode;
+use App\Models\PasswordResetCode;
 use App\Models\User;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    private const RESET_CODE_EXPIRY_MINUTES = 15;
+
     /**
      * Register a new user.
      */
@@ -178,6 +181,106 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Email verified successfully.',
             'user' => ApiPayload::user($user->fresh()),
+        ]);
+    }
+
+    /**
+     * Send a one-time password reset code to the user's email.
+     */
+    public function sendPasswordResetCode(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
+        ]);
+
+        $normalizedEmail = strtolower(trim($validated['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'If the account exists, a password reset code has been sent.',
+            ]);
+        }
+
+        $code = (string) random_int(100000, 999999);
+
+        PasswordResetCode::where('user_id', $user->id)
+            ->whereNull('used_at')
+            ->delete();
+
+        PasswordResetCode::create([
+            'user_id' => $user->id,
+            'code' => $code,
+            'expires_at' => now()->addMinutes(self::RESET_CODE_EXPIRY_MINUTES),
+        ]);
+
+        try {
+            Mail::raw(
+                "Your SplitMate password reset code is: {$code}. It expires in ".self::RESET_CODE_EXPIRY_MINUTES." minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)->subject('SplitMate Password Reset');
+                }
+            );
+        } catch (\Throwable $e) {
+            // Allow local/dev flows even when mail is not configured.
+        }
+
+        $response = [
+            'message' => 'If the account exists, a password reset code has been sent.',
+        ];
+
+        if (app()->environment('local')) {
+            $response['debug_code'] = $code;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Reset password using one-time code.
+     */
+    public function resetPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
+            'code' => 'required|string|size:6',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $normalizedEmail = strtolower(trim($validated['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'email' => ['Invalid email or reset code.'],
+            ]);
+        }
+
+        $record = PasswordResetCode::where('user_id', $user->id)
+            ->where('code', $validated['code'])
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
+
+        if (!$record) {
+            throw ValidationException::withMessages([
+                'code' => ['Invalid or expired reset code.'],
+            ]);
+        }
+
+        $record->update([
+            'used_at' => now(),
+        ]);
+
+        $user->forceFill([
+            'password' => Hash::make($validated['password']),
+        ])->save();
+
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Password reset successfully. Please sign in again.',
         ]);
     }
 }
