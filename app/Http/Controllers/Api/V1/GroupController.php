@@ -103,6 +103,12 @@ class GroupController extends Controller
             ], 404);
         }
 
+        if ((string) $group->created_by_user_id === (string) $request->user()->id) {
+            return response()->json([
+                'message' => 'Group creator cannot join their own group using invite code.',
+            ], 400);
+        }
+
         // Check if user is already a member
         if ($request->user()->groups->contains($group)) {
             return response()->json([
@@ -144,6 +150,12 @@ class GroupController extends Controller
             return response()->json([
                 'message' => 'Invalid QR code',
             ], 404);
+        }
+
+        if ((string) $group->created_by_user_id === (string) $request->user()->id) {
+            return response()->json([
+                'message' => 'Group creator cannot join their own group using QR code.',
+            ], 400);
         }
 
         if ($request->user()->groups->contains($group)) {

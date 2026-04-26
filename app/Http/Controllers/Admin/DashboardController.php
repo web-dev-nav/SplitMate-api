@@ -145,6 +145,7 @@ class DashboardController extends Controller
         $endpoints = [
             ['method' => 'POST', 'uri' => "{$baseUrl}/auth/register", 'description' => 'Create an iOS user account'],
             ['method' => 'POST', 'uri' => "{$baseUrl}/auth/login", 'description' => 'Issue a Sanctum token for the iOS app'],
+            ['method' => 'POST', 'uri' => "{$baseUrl}/auth/google", 'description' => 'Login/register using Google ID token'],
             ['method' => 'POST', 'uri' => "{$baseUrl}/auth/password/send-code", 'description' => 'Send one-time password reset code to email'],
             ['method' => 'POST', 'uri' => "{$baseUrl}/auth/password/reset", 'description' => 'Reset password using email + one-time code'],
             ['method' => 'GET', 'uri' => "{$baseUrl}/groups", 'description' => 'List authenticated user groups'],

@@ -14,6 +14,7 @@ Route::prefix('v1')->group(function () {
     // Authentication routes (public)
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/google', [AuthController::class, 'googleLogin']);
     Route::post('/auth/password/send-code', [AuthController::class, 'sendPasswordResetCode']);
     Route::post('/auth/password/reset', [AuthController::class, 'resetPassword']);
     Route::get('/invitations/accept/{token}', [GroupController::class, 'acceptInvitation']);

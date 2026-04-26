@@ -24,6 +24,7 @@ class User extends Authenticatable
         'uuid',
         'name',
         'email',
+        'google_id',
         'password',
         'is_active',
         'email_verified_at',

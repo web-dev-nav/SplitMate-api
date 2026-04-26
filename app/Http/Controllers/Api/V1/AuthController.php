@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -67,6 +68,61 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user' => ApiPayload::user($user),
+        ]);
+    }
+
+    /**
+     * Login/register using Google ID token.
+     */
+    public function googleLogin(Request $request)
+    {
+        $validated = $request->validate([
+            'id_token' => 'required|string',
+        ]);
+
+        $googleUser = $this->verifyGoogleIdToken($validated['id_token']);
+
+        if (!$googleUser || empty($googleUser['sub']) || empty($googleUser['email'])) {
+            throw ValidationException::withMessages([
+                'id_token' => ['Invalid Google token.'],
+            ]);
+        }
+
+        $email = strtolower(trim((string) $googleUser['email']));
+        $googleId = (string) $googleUser['sub'];
+        $name = trim((string) ($googleUser['name'] ?? 'Google User'));
+        if ($name === '') {
+            $name = 'Google User';
+        }
+
+        $user = User::where('google_id', $googleId)->first();
+        if (!$user) {
+            $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+        }
+
+        if (!$user) {
+            $user = User::create([
+                'uuid' => Str::uuid(),
+                'name' => $name,
+                'email' => $email,
+                'google_id' => $googleId,
+                'password' => Hash::make(Str::random(40)),
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]);
+        } else {
+            $user->forceFill([
+                'google_id' => $user->google_id ?: $googleId,
+                'name' => $user->name ?: $name,
+                'email_verified_at' => $user->email_verified_at ?: now(),
+            ])->save();
+        }
+
+        $token = $user->createToken('api_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => ApiPayload::user($user->fresh()),
         ]);
     }
 
@@ -282,5 +338,45 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Password reset successfully. Please sign in again.',
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function verifyGoogleIdToken(string $idToken): ?array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->acceptJson()
+                ->get('https://oauth2.googleapis.com/tokeninfo', [
+                    'id_token' => $idToken,
+                ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (!$response->successful()) {
+            return null;
+        }
+
+        $payload = $response->json();
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $emailVerified = strtolower((string) ($payload['email_verified'] ?? 'false'));
+        if (!in_array($emailVerified, ['true', '1'], true)) {
+            return null;
+        }
+
+        $configuredClientId = trim((string) env('GOOGLE_CLIENT_ID', ''));
+        if ($configuredClientId !== '') {
+            $audience = (string) ($payload['aud'] ?? '');
+            if ($audience !== $configuredClientId) {
+                return null;
+            }
+        }
+
+        return $payload;
     }
 }
