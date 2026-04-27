@@ -51,6 +51,10 @@
                             <td>{{ optional($user->created_at)->format('Y-m-d H:i') }}</td>
                             <td>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <a class="button primary" href="{{ route('admin.users.edit', $user) }}">
+                                        Edit
+                                    </a>
+
                                     <form method="POST" action="{{ route('admin.users.toggle', $user) }}">
                                         @csrf
                                         <button class="button {{ $user->is_active ? 'warn' : 'success' }}" type="submit">

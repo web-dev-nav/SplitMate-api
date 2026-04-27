@@ -277,7 +277,7 @@ class GroupController extends Controller
     }
 
     /**
-     * Rename a group (admin only).
+     * Update group settings.
      */
     public function update(Request $request, Group $group)
     {
@@ -288,17 +288,60 @@ class GroupController extends Controller
         }
 
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'sometimes|required|string|max:255',
+            'currency_code' => 'sometimes|required|string|size:3',
+            'owner_user_id' => 'sometimes|required|string|exists:users,uuid',
         ]);
 
-        $group->update([
-            'name' => $validated['name'],
-        ]);
+        $updates = [];
+        if (array_key_exists('name', $validated)) {
+            $updates['name'] = $validated['name'];
+        }
+        if (array_key_exists('currency_code', $validated)) {
+            $updates['currency_code'] = strtoupper($validated['currency_code']);
+        }
+
+        if (array_key_exists('owner_user_id', $validated)) {
+            if (!$this->isGroupCreator($request, $group)) {
+                return response()->json([
+                    'message' => 'Only the current group owner can transfer ownership.',
+                ], 403);
+            }
+
+            $newOwner = User::where('uuid', $validated['owner_user_id'])->first();
+            if (!$newOwner) {
+                return response()->json([
+                    'message' => 'Owner user not found.',
+                ], 404);
+            }
+
+            $isMember = $group->members()
+                ->where('users.id', $newOwner->id)
+                ->wherePivot('is_active', true)
+                ->exists();
+
+            if (!$isMember) {
+                return response()->json([
+                    'message' => 'New owner must be an active member of the group.',
+                ], 422);
+            }
+
+            $updates['created_by_user_id'] = $newOwner->id;
+            $group->members()->updateExistingPivot($newOwner->id, [
+                'role' => 'admin',
+                'is_active' => true,
+            ]);
+        }
+
+        if (!empty($updates)) {
+            $group->update($updates);
+        }
+
         $group->load('creator');
 
         return response()->json([
             'group' => ApiPayload::group($group),
-            'message' => 'Group renamed successfully.',
+            'message' => 'Group updated successfully.',
         ]);
     }
 

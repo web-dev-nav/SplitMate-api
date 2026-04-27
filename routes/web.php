@@ -16,6 +16,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
         Route::get('/users', [DashboardController::class, 'users'])->name('users');
+        Route::get('/users/{user}/edit', [DashboardController::class, 'editUser'])->name('users.edit');
+        Route::post('/users/{user}/edit', [DashboardController::class, 'updateUser'])->name('users.update');
         Route::post('/users/{user}/toggle', [DashboardController::class, 'toggleUser'])->name('users.toggle');
         Route::post('/users/{user}/delete', [DashboardController::class, 'deleteUser'])->name('users.delete');
         Route::get('/groups', [DashboardController::class, 'groups'])->name('groups');

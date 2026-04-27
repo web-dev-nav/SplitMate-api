@@ -12,8 +12,10 @@ use App\Models\User;
 use App\Models\EmailVerificationCode;
 use App\Services\BalanceService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -57,6 +59,43 @@ class DashboardController extends Controller
         $users = User::query()->latest()->get();
 
         return view('admin.users', compact('users'));
+    }
+
+    public function editUser(User $user): View
+    {
+        return view('admin.user-edit', compact('user'));
+    }
+
+    public function updateUser(Request $request, User $user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'is_active' => ['required', 'boolean'],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $email = strtolower(trim((string) $validated['email']));
+
+        $updates = [
+            'name' => trim((string) $validated['name']),
+            'email' => $email,
+            'is_active' => (bool) $validated['is_active'],
+        ];
+
+        if ($email !== strtolower((string) $user->email)) {
+            $updates['email_verified_at'] = null;
+        }
+
+        if (!empty($validated['password'])) {
+            $updates['password'] = Hash::make((string) $validated['password']);
+            // Force re-login on password reset done from admin panel.
+            $user->tokens()->delete();
+        }
+
+        $user->update($updates);
+
+        return redirect()->route('admin.users')->with('status', 'User updated successfully.');
     }
 
     public function toggleUser(Request $request, User $user): RedirectResponse
