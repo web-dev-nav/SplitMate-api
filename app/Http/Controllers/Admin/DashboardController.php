@@ -144,6 +144,54 @@ class DashboardController extends Controller
         return view('admin.groups', compact('groups'));
     }
 
+    public function editGroup(Group $group): View
+    {
+        $group->load([
+            'creator',
+            'members' => fn ($query) => $query->wherePivot('is_active', true),
+        ]);
+
+        return view('admin.group-edit', compact('group'));
+    }
+
+    public function updateGroup(Request $request, Group $group): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'currency_code' => ['required', 'string', 'size:3'],
+            'owner_user_id' => ['required', 'string', 'exists:users,uuid'],
+        ]);
+
+        $newOwner = User::where('uuid', $validated['owner_user_id'])->first();
+        if (!$newOwner) {
+            return back()->with('status', 'Owner user not found.');
+        }
+
+        $isActiveMember = $group->members()
+            ->where('users.id', $newOwner->id)
+            ->wherePivot('is_active', true)
+            ->exists();
+
+        if (!$isActiveMember) {
+            return back()->with('status', 'Selected owner must be an active member of this group.');
+        }
+
+        DB::transaction(function () use ($group, $validated, $newOwner) {
+            $group->update([
+                'name' => trim((string) $validated['name']),
+                'currency_code' => strtoupper((string) $validated['currency_code']),
+                'created_by_user_id' => $newOwner->id,
+            ]);
+
+            $group->members()->updateExistingPivot($newOwner->id, [
+                'role' => 'admin',
+                'is_active' => true,
+            ]);
+        });
+
+        return redirect()->route('admin.groups')->with('status', 'Group updated successfully.');
+    }
+
     public function deleteGroup(Request $request, Group $group): RedirectResponse
     {
         DB::transaction(function () use ($group) {
@@ -168,7 +216,6 @@ class DashboardController extends Controller
         $statements = $group->statementRecords()
             ->with('user')
             ->latest('transaction_date')
-            ->limit(50)
             ->get();
 
         return view('admin.group-detail', [

@@ -6,8 +6,11 @@
 @section('content')
     <div class="panel" style="margin-bottom: 18px;">
         <h2>Danger Zone</h2>
+        <div class="actions" style="margin-bottom: 10px;">
+            <a href="{{ route('admin.groups.edit', $group) }}" class="button primary">Edit Group</a>
+        </div>
         <form method="POST" action="{{ url('/admin/groups/'.$group->id.'/delete') }}"
-              onsubmit="return confirm('Delete this group completely? This cannot be undone.');">
+              onsubmit="return confirm('WARNING: Delete group {{ addslashes($group->name) }}?\\n\\nThis permanently deletes group, members links, expenses, settlements, and statements.\\n\\nThis action cannot be undone.');">
             @csrf
             <button class="button danger" type="submit">Delete Group</button>
         </form>
@@ -100,20 +103,40 @@
             @if($group->settlements->isEmpty())
                 <div class="empty">No settlements yet.</div>
             @else
-                <div class="stack">
-                    @foreach($group->settlements->sortByDesc('created_at') as $settlement)
-                        <div>
-                            <strong>{{ optional($settlement->fromUser)->name }} → {{ optional($settlement->toUser)->name }}</strong>
-                            <div class="muted">{{ number_format(($settlement->amount_cents ?? 0) / 100, 2) }} · {{ optional($settlement->settlement_date)->format('Y-m-d') }}</div>
-                        </div>
-                    @endforeach
-                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Payer</th>
+                            <th>Payee</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Proof</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($group->settlements->sortByDesc('settlement_date') as $settlement)
+                            <tr>
+                                <td>{{ optional($settlement->fromUser)->name ?: 'Unknown' }}</td>
+                                <td>{{ optional($settlement->toUser)->name ?: 'Unknown' }}</td>
+                                <td>{{ number_format(($settlement->amount_cents ?? 0) / 100, 2) }}</td>
+                                <td>{{ optional($settlement->settlement_date)->format('Y-m-d') }}</td>
+                                <td>
+                                    @if($settlement->proof_photo)
+                                        <a href="{{ url('storage/'.$settlement->proof_photo) }}" target="_blank">View</a>
+                                    @else
+                                        <span class="muted">None</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             @endif
         </div>
     </div>
 
     <div class="panel" style="margin-top: 18px;">
-        <h2>Statements</h2>
+        <h2>Statements (All Records)</h2>
         @if($statements->isEmpty())
             <div class="empty">No statement records have been generated yet.</div>
         @else
@@ -123,7 +146,11 @@
                         <th>User</th>
                         <th>Type</th>
                         <th>Description</th>
+                        <th>Ref</th>
                         <th>Amount</th>
+                        <th>Before</th>
+                        <th>After</th>
+                        <th>Status</th>
                         <th>Date</th>
                     </tr>
                 </thead>
@@ -133,7 +160,11 @@
                             <td>{{ optional($statement->user)->name ?: $statement->user_id }}</td>
                             <td>{{ $statement->transaction_type }}</td>
                             <td>{{ $statement->description }}</td>
+                            <td>{{ $statement->reference_number ?: '-' }}</td>
                             <td>{{ number_format(($statement->amount_cents ?? 0) / 100, 2) }}</td>
+                            <td>{{ number_format(($statement->balance_before_cents ?? 0) / 100, 2) }}</td>
+                            <td>{{ number_format(($statement->balance_after_cents ?? 0) / 100, 2) }}</td>
+                            <td>{{ $statement->status ?: '-' }}</td>
                             <td>{{ optional($statement->transaction_date)->format('Y-m-d H:i') }}</td>
                         </tr>
                     @endforeach
