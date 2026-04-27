@@ -33,57 +33,62 @@
         @if(empty($snapshot['summaries']))
             <div class="empty">No participant balance data found.</div>
         @else
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Participant</th>
-                        <th>Total Credit</th>
-                        <th>Total Debit</th>
-                        <th>Net</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody>
+            @php
+                $summaryByUuid = collect($snapshot['summaries'])->keyBy('user_id');
+            @endphp
+            <div class="grid two">
+                @foreach($summaryByUuid as $userUuid => $summary)
                     @php
-                        $summaryByUuid = collect($snapshot['summaries'])->keyBy('user_id');
+                        $creditCents = (int) array_sum($summary['owed_by'] ?? []);
+                        $debitCents = (int) array_sum($summary['owes'] ?? []);
+                        $netCents = (int) ($summary['net_balance_cents'] ?? 0);
                     @endphp
-                    @foreach($summaryByUuid as $userUuid => $summary)
-                        @php
-                            $creditCents = array_sum($summary['owed_by'] ?? []);
-                            $debitCents = array_sum($summary['owes'] ?? []);
-                            $netCents = (int) ($summary['net_balance_cents'] ?? 0);
-                        @endphp
-                        <tr>
-                            <td><strong>{{ $summary['user_name'] ?? $userUuid }}</strong></td>
-                            <td>{{ number_format($creditCents / 100, 2) }}</td>
-                            <td>{{ number_format($debitCents / 100, 2) }}</td>
-                            <td>{{ $netCents >= 0 ? '+' : '' }}{{ number_format($netCents / 100, 2) }}</td>
-                            <td>
-                                @php
-                                    $owesText = collect($summary['owes'] ?? [])->map(function ($amount, $otherUuid) use ($summaryByUuid) {
-                                        $name = data_get($summaryByUuid->get($otherUuid), 'user_name', $otherUuid);
-                                        return "owes {$name}: " . number_format(((int) $amount) / 100, 2);
-                                    })->values()->all();
-                                    $owedByText = collect($summary['owed_by'] ?? [])->map(function ($amount, $otherUuid) use ($summaryByUuid) {
-                                        $name = data_get($summaryByUuid->get($otherUuid), 'user_name', $otherUuid);
-                                        return "gets from {$name}: " . number_format(((int) $amount) / 100, 2);
-                                    })->values()->all();
-                                    $allText = array_merge($owesText, $owedByText);
-                                @endphp
-                                @if(empty($allText))
-                                    <span class="muted">No dues</span>
-                                @else
-                                    <div class="stack">
-                                        @foreach($allText as $line)
-                                            <div class="muted">• {{ $line }}</div>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                    <div class="panel" style="border-radius: 14px; padding: 16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+                            <strong style="font-size:16px;">{{ $summary['user_name'] ?? $userUuid }}</strong>
+                            <span class="badge {{ $netCents >= 0 ? 'success' : 'warn' }}">
+                                Net {{ $netCents >= 0 ? '+' : '' }}{{ number_format($netCents / 100, 2) }}
+                            </span>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
+                            <div style="background:#ecfdf5; border:1px solid #bbf7d0; border-radius:10px; padding:10px;">
+                                <div class="kicker">You Get</div>
+                                <div style="font-weight:700; color:#166534;">{{ number_format($creditCents / 100, 2) }}</div>
+                            </div>
+                            <div style="background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:10px;">
+                                <div class="kicker">You Owe</div>
+                                <div style="font-weight:700; color:#9a3412;">{{ number_format($debitCents / 100, 2) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="stack" style="gap:8px;">
+                            @php
+                                $owesLines = collect($summary['owes'] ?? [])->map(function ($amount, $otherUuid) use ($summaryByUuid) {
+                                    $name = data_get($summaryByUuid->get($otherUuid), 'user_name', $otherUuid);
+                                    return "Owes {$name}: " . number_format(((int) $amount) / 100, 2);
+                                })->values();
+
+                                $getsLines = collect($summary['owed_by'] ?? [])->map(function ($amount, $otherUuid) use ($summaryByUuid) {
+                                    $name = data_get($summaryByUuid->get($otherUuid), 'user_name', $otherUuid);
+                                    return "Gets from {$name}: " . number_format(((int) $amount) / 100, 2);
+                                })->values();
+                            @endphp
+
+                            @if($owesLines->isEmpty() && $getsLines->isEmpty())
+                                <div class="muted">No dues right now.</div>
+                            @else
+                                @foreach($getsLines as $line)
+                                    <div style="padding:8px 10px; border-radius:8px; background:#f0fdf4; color:#14532d;">{{ $line }}</div>
+                                @endforeach
+                                @foreach($owesLines as $line)
+                                    <div style="padding:8px 10px; border-radius:8px; background:#fff7ed; color:#7c2d12;">{{ $line }}</div>
+                                @endforeach
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
         @endif
     </div>
 
@@ -194,40 +199,41 @@
     </div>
 
     <div class="panel" style="margin-top: 18px;">
-        <h2>All Statement Records</h2>
+        <h2>Member Activity Timeline (Easy View)</h2>
         @if($statements->isEmpty())
             <div class="empty">No statement records found.</div>
         @else
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Member</th>
-                        <th>Type</th>
-                        <th>Description</th>
-                        <th>Ref</th>
-                        <th>Amount</th>
-                        <th>Before</th>
-                        <th>After</th>
-                        <th>Change</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($statements as $statement)
-                        <tr>
-                            <td>{{ optional($statement->transaction_date)->format('Y-m-d H:i') }}</td>
-                            <td>{{ optional($statement->user)->name ?: $statement->user_id }}</td>
-                            <td>{{ $statement->transaction_type }}</td>
-                            <td>{{ $statement->description }}</td>
-                            <td>{{ $statement->reference_number ?: '-' }}</td>
-                            <td>{{ number_format(($statement->amount_cents ?? 0) / 100, 2) }}</td>
-                            <td>{{ number_format(($statement->balance_before_cents ?? 0) / 100, 2) }}</td>
-                            <td>{{ number_format(($statement->balance_after_cents ?? 0) / 100, 2) }}</td>
-                            <td>{{ number_format(($statement->balance_change_cents ?? 0) / 100, 2) }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+            <div class="stack">
+                @foreach($statements as $statement)
+                    @php
+                        $changeCents = (int) ($statement->balance_change_cents ?? 0);
+                        $afterCents = (int) ($statement->balance_after_cents ?? 0);
+                        $changeLabel = $changeCents > 0 ? 'Credit' : ($changeCents < 0 ? 'Debit' : 'No Change');
+                        $changeClass = $changeCents > 0 ? 'success' : ($changeCents < 0 ? 'warn' : 'primary');
+                    @endphp
+                    <div class="panel" style="border-radius: 14px; padding: 14px;">
+                        <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <div>
+                                <strong>{{ optional($statement->user)->name ?: 'Unknown member' }}</strong>
+                                <div class="muted">{{ optional($statement->transaction_date)->format('Y-m-d H:i') }}</div>
+                            </div>
+                            <span class="badge {{ $changeClass }}">
+                                {{ $changeLabel }} {{ $changeCents > 0 ? '+' : '' }}{{ number_format($changeCents / 100, 2) }}
+                            </span>
+                        </div>
+
+                        <div style="margin-top:10px;">
+                            <strong>{{ ucfirst((string) $statement->transaction_type) }}:</strong>
+                            {{ $statement->description ?: 'Activity record' }}
+                        </div>
+
+                        <div class="muted" style="margin-top:6px;">
+                            Ref: {{ $statement->reference_number ?: '-' }} |
+                            Balance now: {{ $afterCents > 0 ? '+' : '' }}{{ number_format($afterCents / 100, 2) }}
+                        </div>
+                    </div>
+                @endforeach
+            </div>
         @endif
     </div>
 @endsection
