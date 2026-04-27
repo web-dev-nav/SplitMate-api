@@ -9,11 +9,13 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class LegacySqlImportSeeder extends Seeder
 {
     private const LEGACY_GROUP_SEED_KEY = 'splitmate-legacy-group-1';
+    private const DEFAULT_LEGACY_PASSWORD = 'splitmate123';
 
     /**
      * Run the database seeds.
@@ -53,7 +55,7 @@ class LegacySqlImportSeeder extends Seeder
         $this->command?->info("Statement records imported: {$summary['statements']}");
         $this->command?->info("Receipt files copied: {$summary['receipt_copied']}");
         if ($summary['receipt_missing'] > 0) {
-            $this->command?->warn("Receipt files missing in public/uploads/receipts: {$summary['receipt_missing']}");
+            $this->command?->warn("Receipt files missing in legacy sources (public/upload or public/uploads): {$summary['receipt_missing']}");
         }
     }
 
@@ -63,11 +65,11 @@ class LegacySqlImportSeeder extends Seeder
     private function importUsers(array $rows): array
     {
         $map = [];
+        $defaultPassword = $this->legacyDefaultPassword();
 
         foreach ($rows as $row) {
             $oldId = (int) $row['id'];
             $name = (string) $row['name'];
-            $password = (string) $row['password'];
             $isActive = (bool) ((int) $row['is_active']);
             $createdAt = $row['created_at'];
             $updatedAt = $row['updated_at'];
@@ -81,7 +83,7 @@ class LegacySqlImportSeeder extends Seeder
                     'uuid' => $uuid,
                     'name' => $name,
                     'email' => $email,
-                    'password' => $password,
+                    'password' => Hash::make($defaultPassword),
                     'is_active' => $isActive,
                     'email_verified_at' => $createdAt,
                     'created_at' => $createdAt,
@@ -91,8 +93,11 @@ class LegacySqlImportSeeder extends Seeder
                 $user->fill([
                     'name' => $name,
                     'is_active' => $isActive,
-                    'password' => $password,
                 ]);
+
+                if (!Hash::check($defaultPassword, (string) $user->password)) {
+                    $user->password = Hash::make($defaultPassword);
+                }
 
                 if (!$user->uuid) {
                     $user->uuid = $uuid;
@@ -109,6 +114,14 @@ class LegacySqlImportSeeder extends Seeder
         return $map;
     }
 
+    private function legacyDefaultPassword(): string
+    {
+        $configured = (string) env('LEGACY_IMPORT_DEFAULT_PASSWORD', self::DEFAULT_LEGACY_PASSWORD);
+        $trimmed = trim($configured);
+
+        return $trimmed !== '' ? $trimmed : self::DEFAULT_LEGACY_PASSWORD;
+    }
+
     private function ensureLegacyGroup(array $userIdMap, array $userRows): Group
     {
         $creatorOldId = (int) $userRows[0]['id'];
@@ -123,7 +136,7 @@ class LegacySqlImportSeeder extends Seeder
         return Group::updateOrCreate(
             ['id' => $groupId],
             [
-                'name' => 'Legacy SplitMate Group',
+                'name' => 'Home Expenses',
                 'invite_code' => $inviteCode,
                 'created_by_user_id' => $creatorId,
                 'currency_code' => 'USD',
@@ -198,9 +211,12 @@ class LegacySqlImportSeeder extends Seeder
             $participantUuids = array_values(array_unique($participantUuids));
 
             $description = (string) $row['description'];
-            $receiptPhoto = $row['receipt_photo'];
-            if ($receiptPhoto) {
-                if ($this->copyLegacyReceiptToPublicDisk((string) $receiptPhoto)) {
+            $receiptPhoto = null;
+            if (!empty($row['receipt_photo'])) {
+                $legacyReceiptPath = (string) $row['receipt_photo'];
+                $receiptPhoto = $this->normalizeLegacyReceiptPath($legacyReceiptPath);
+
+                if ($this->copyLegacyReceiptToPublicDisk($legacyReceiptPath)) {
                     $copiedReceipts++;
                 } else {
                     $missingReceipts++;
@@ -299,15 +315,19 @@ class LegacySqlImportSeeder extends Seeder
     private function copyLegacyReceiptToPublicDisk(string $relativePath): bool
     {
         $filename = basename($relativePath);
-        $source = public_path('uploads/receipts/' . $filename);
+        $source = $this->resolveLegacyReceiptSourcePath($relativePath);
         $destination = storage_path('app/public/receipts/' . $filename);
 
-        if (!File::exists($source)) {
-            return false;
+        if (File::exists($destination)) {
+            return true;
         }
 
         if (!File::exists(dirname($destination))) {
             File::ensureDirectoryExists(dirname($destination));
+        }
+
+        if ($source === null || !File::exists($source)) {
+            return false;
         }
 
         if (!File::exists($destination)) {
@@ -315,6 +335,41 @@ class LegacySqlImportSeeder extends Seeder
         }
 
         return true;
+    }
+
+    private function normalizeLegacyReceiptPath(string $value): string
+    {
+        $normalized = ltrim(str_replace('\\', '/', trim($value)), '/');
+        $filename = basename($normalized);
+
+        return 'receipts/' . $filename;
+    }
+
+    private function resolveLegacyReceiptSourcePath(string $relativePath): ?string
+    {
+        $normalized = ltrim(str_replace('\\', '/', trim($relativePath)), '/');
+        $filename = basename($normalized);
+
+        $candidates = [
+            public_path($normalized),
+            public_path('upload/' . $normalized),
+            public_path('uploads/' . $normalized),
+            public_path('upload/receipts/' . $filename),
+            public_path('uploads/receipts/' . $filename),
+            base_path('public/' . $normalized),
+            base_path('public/upload/' . $normalized),
+            base_path('public/uploads/' . $normalized),
+            base_path('public/upload/receipts/' . $filename),
+            base_path('public/uploads/receipts/' . $filename),
+        ];
+
+        foreach ($candidates as $path) {
+            if (File::exists($path)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -555,4 +610,3 @@ class LegacySqlImportSeeder extends Seeder
         return sprintf('%s-%s-%s-%s-%s', $timeLow, $timeMid, $timeHiAndVersion, $clockSeq, $node);
     }
 }
-

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\LegacyImportController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin');
@@ -21,5 +22,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/groups/{group}/delete', [DashboardController::class, 'deleteGroup'])->name('groups.delete');
         Route::get('/groups/{group}', [DashboardController::class, 'showGroup'])->name('groups.show');
         Route::get('/api-access', [DashboardController::class, 'apiDocs'])->name('api-docs');
+        Route::match(['get', 'post'], '/tools/legacy-import', LegacyImportController::class)
+            ->name('tools.legacy-import');
     });
 });
