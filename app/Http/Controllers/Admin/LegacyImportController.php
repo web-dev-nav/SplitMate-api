@@ -19,9 +19,13 @@ class LegacyImportController extends Controller
         $output = trim(Artisan::output());
 
         if ($exitCode !== 0) {
-            return back()->with('status', "Legacy import failed. {$output}");
+            return redirect()
+                ->route('admin.dashboard')
+                ->with('status', "Legacy import failed. {$output}");
         }
 
-        return back()->with('status', 'Legacy import completed.');
+        return redirect()
+            ->route('admin.dashboard')
+            ->with('status', 'Legacy import completed.');
     }
 }
