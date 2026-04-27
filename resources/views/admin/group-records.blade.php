@@ -44,7 +44,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @php($summaryByUuid = collect($snapshot['summaries'])->keyBy('user_id'))
+                    @php
+                        $summaryByUuid = collect($snapshot['summaries'])->keyBy('user_id');
+                    @endphp
                     @foreach($summaryByUuid as $userUuid => $summary)
                         @php
                             $creditCents = array_sum($summary['owed_by'] ?? []);
