@@ -23,6 +23,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
+        Route::patch('/auth/me', [AuthController::class, 'updateProfile']);
         Route::post('/auth/email/send-code', [AuthController::class, 'sendVerificationCode']);
         Route::post('/auth/email/verify', [AuthController::class, 'verifyEmailCode']);
 

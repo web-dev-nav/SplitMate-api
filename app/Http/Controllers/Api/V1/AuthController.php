@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -55,7 +56,14 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        $email = strtolower(trim($validated['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if ($user && !empty($user->google_id)) {
+            throw ValidationException::withMessages([
+                'email' => ['This email is associated with a Google account. Please sign in with Google.'],
+            ]);
+        }
 
         if (!$user || !Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
@@ -100,6 +108,21 @@ class AuthController extends Controller
             $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
         }
 
+        if ($user && !empty($user->google_id) && $user->google_id !== $googleId) {
+            throw ValidationException::withMessages([
+                'email' => ['This email is already linked to a different Google account.'],
+            ]);
+        }
+
+        if ($user) {
+            $existingEmailOwner = User::whereRaw('LOWER(email) = ?', [$email])->first();
+            if ($existingEmailOwner && $existingEmailOwner->id !== $user->id) {
+                throw ValidationException::withMessages([
+                    'email' => ['Another account already uses this email address.'],
+                ]);
+            }
+        }
+
         if (!$user) {
             $user = User::create([
                 'uuid' => Str::uuid(),
@@ -112,9 +135,11 @@ class AuthController extends Controller
             ]);
         } else {
             $user->forceFill([
-                'google_id' => $user->google_id ?: $googleId,
-                'name' => $user->name ?: $name,
-                'email_verified_at' => $user->email_verified_at ?: now(),
+                'google_id' => $googleId,
+                'name' => $name,
+                'email' => $email,
+                'is_active' => true,
+                'email_verified_at' => now(),
             ])->save();
         }
 
@@ -134,6 +159,49 @@ class AuthController extends Controller
         $user = $request->user();
 
         return response()->json(ApiPayload::user($user));
+    }
+
+    /**
+     * Update authenticated user profile.
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'email' => [
+                'sometimes',
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+        ]);
+
+        $updates = [];
+
+        if (array_key_exists('name', $validated)) {
+            $updates['name'] = trim((string) $validated['name']);
+        }
+
+        if (array_key_exists('email', $validated)) {
+            $email = strtolower(trim((string) $validated['email']));
+            if ($email !== strtolower((string) $user->email)) {
+                $updates['email'] = $email;
+                $updates['email_verified_at'] = null;
+            }
+        }
+
+        if (!empty($updates)) {
+            $user->forceFill($updates)->save();
+        }
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user' => ApiPayload::user($user->fresh()),
+        ]);
     }
 
     /**
