@@ -413,18 +413,36 @@ class LegacySqlImportSeeder extends Seeder
 
     private function resolveLegacySqlPath(): string
     {
+        $configuredPath = trim((string) env('LEGACY_SQL_PATH', ''));
+        $baseParentPath = realpath(base_path('..')) ?: null;
         $candidates = [
+            $configuredPath !== '' ? $configuredPath : null,
+            $configuredPath !== '' ? base_path($configuredPath) : null,
             base_path('old_splitmate.sql'),
             base_path('../old_splitmate.sql'),
+            base_path('database/seeders/old_splitmate.sql'),
+            base_path('database/seeders/legacy/old_splitmate.sql'),
+            dirname(base_path()) . '/old_splitmate.sql',
+            getcwd() . '/old_splitmate.sql',
+            $baseParentPath ? ($baseParentPath . '/old_splitmate.sql') : null,
         ];
 
+        $checked = [];
         foreach ($candidates as $path) {
+            if (!is_string($path) || trim($path) === '') {
+                continue;
+            }
+
+            $path = str_replace('\\', '/', $path);
+            $checked[] = $path;
+
             if (File::exists($path)) {
                 return $path;
             }
         }
 
-        throw new \RuntimeException('Could not locate old_splitmate.sql. Expected it at repo root or SplitMate-api root.');
+        $checkedList = implode(', ', $checked);
+        throw new \RuntimeException("Could not locate old_splitmate.sql. Checked: {$checkedList}");
     }
 
     /**
