@@ -31,6 +31,9 @@
                             <td>{{ $group->members_count }} members · {{ $group->expenses_count }} expenses · {{ $group->settlements_count }} settlements</td>
                             <td>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <a class="button" href="{{ route('admin.groups.records', $group) }}">
+                                        Records
+                                    </a>
                                     <a class="button primary" href="{{ route('admin.groups.edit', $group) }}">
                                         Edit
                                     </a>

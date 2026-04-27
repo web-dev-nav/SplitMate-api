@@ -225,6 +225,31 @@ class DashboardController extends Controller
         ]);
     }
 
+    public function groupRecords(Group $group): View
+    {
+        $group->load([
+            'creator',
+            'members' => fn ($query) => $query->wherePivot('is_active', true)->orderBy('name'),
+            'expenses' => fn ($query) => $query->latest('expense_date')->latest('created_at'),
+            'expenses.paidByUser',
+            'settlements' => fn ($query) => $query->latest('settlement_date')->latest('created_at'),
+            'settlements.fromUser',
+            'settlements.toUser',
+        ]);
+
+        $snapshot = $this->balanceService->calculateSnapshot($group);
+        $statements = $group->statementRecords()
+            ->with('user')
+            ->latest('transaction_date')
+            ->get();
+
+        return view('admin.group-records', [
+            'group' => $group,
+            'snapshot' => $snapshot,
+            'statements' => $statements,
+        ]);
+    }
+
     public function apiDocs(): View
     {
         $baseUrl = rtrim(url('/api/v1'), '/');

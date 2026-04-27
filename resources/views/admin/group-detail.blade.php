@@ -7,6 +7,7 @@
     <div class="panel" style="margin-bottom: 18px;">
         <h2>Danger Zone</h2>
         <div class="actions" style="margin-bottom: 10px;">
+            <a href="{{ route('admin.groups.records', $group) }}" class="button">View Full Records</a>
             <a href="{{ route('admin.groups.edit', $group) }}" class="button primary">Edit Group</a>
         </div>
         <form method="POST" action="{{ url('/admin/groups/'.$group->id.'/delete') }}"

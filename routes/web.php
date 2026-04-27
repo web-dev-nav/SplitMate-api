@@ -26,6 +26,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/groups', [DashboardController::class, 'groups'])->name('groups');
         Route::get('/groups/{group}/edit', [DashboardController::class, 'editGroup'])->name('groups.edit');
         Route::post('/groups/{group}/edit', [DashboardController::class, 'updateGroup'])->name('groups.update');
+        Route::get('/groups/{group}/records', [DashboardController::class, 'groupRecords'])->name('groups.records');
         Route::post('/groups/{group}/delete', [DashboardController::class, 'deleteGroup'])->name('groups.delete');
         Route::get('/groups/{group}', [DashboardController::class, 'showGroup'])->name('groups.show');
         Route::get('/api-access', [DashboardController::class, 'apiDocs'])->name('api-docs');
