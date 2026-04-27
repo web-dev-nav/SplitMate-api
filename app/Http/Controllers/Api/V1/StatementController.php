@@ -37,7 +37,7 @@ class StatementController extends Controller
         }
 
         $query = $group->statementRecords()
-            ->with('user')
+            ->with(['user', 'expense.paidByUser', 'settlement.fromUser', 'settlement.toUser'])
             ->when($userId, fn ($q) => $q->where('user_id', $userId));
 
         if ($query->exists()) {
@@ -90,12 +90,16 @@ class StatementController extends Controller
                 return [
                     'id' => $expense->uuid,
                     'user_id' => $expense->paidByUser?->uuid,
+                    'user_name' => $expense->paidByUser?->name,
                     'type' => 'expense',
                     'description' => 'Expense: '.$expense->title,
                     'amount_cents' => (int) ($expense->amount_cents ?? 0),
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => 0,
+                    'paid_by_user_name' => $expense->paidByUser?->name,
+                    'from_user_name' => null,
+                    'to_user_name' => null,
                     'transaction_date' => optional($expense->expense_date)?->toIso8601String(),
                     'created_at' => optional($expense->created_at)?->toIso8601String(),
                 ];
@@ -116,12 +120,16 @@ class StatementController extends Controller
                 return [
                     'id' => $settlement->uuid,
                     'user_id' => $settlement->fromUser?->uuid,
+                    'user_name' => $settlement->fromUser?->name,
                     'type' => 'settlement',
                     'description' => 'Settlement: '.($settlement->fromUser?->name ?? 'Unknown').' -> '.($settlement->toUser?->name ?? 'Unknown'),
                     'amount_cents' => (int) ($settlement->amount_cents ?? 0),
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => 0,
+                    'paid_by_user_name' => null,
+                    'from_user_name' => $settlement->fromUser?->name,
+                    'to_user_name' => $settlement->toUser?->name,
                     'transaction_date' => optional($settlement->settlement_date)?->toIso8601String(),
                     'created_at' => optional($settlement->created_at)?->toIso8601String(),
                 ];
@@ -180,12 +188,16 @@ class StatementController extends Controller
                 return [
                     'id' => (string) $expense->uuid,
                     'user_id' => $userUuid,
+                    'user_name' => $memberUuidToName[$userUuid] ?? null,
                     'type' => 'expense',
                     'description' => 'Expense: '.$expense->title,
                     'amount_cents' => $impactCents,
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => $impactCents,
+                    'paid_by_user_name' => $expense->paidByUser?->name,
+                    'from_user_name' => null,
+                    'to_user_name' => null,
                     'transaction_date' => optional($expense->expense_date)?->toIso8601String(),
                     'created_at' => optional($expense->created_at)?->toIso8601String(),
                 ];
@@ -210,12 +222,18 @@ class StatementController extends Controller
                 return [
                     'id' => (string) $settlement->uuid,
                     'user_id' => $userUuid,
+                    'user_name' => $fromUuid === $userUuid
+                        ? ($settlement->fromUser?->name ?? null)
+                        : ($settlement->toUser?->name ?? null),
                     'type' => 'settlement',
                     'description' => 'Settlement: '.($settlement->fromUser?->name ?? 'Unknown').' -> '.($settlement->toUser?->name ?? 'Unknown'),
                     'amount_cents' => $impactCents,
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => $impactCents,
+                    'paid_by_user_name' => null,
+                    'from_user_name' => $settlement->fromUser?->name,
+                    'to_user_name' => $settlement->toUser?->name,
                     'transaction_date' => optional($settlement->settlement_date)?->toIso8601String(),
                     'created_at' => optional($settlement->created_at)?->toIso8601String(),
                 ];

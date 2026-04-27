@@ -95,15 +95,23 @@ class ApiPayload
 
     public static function statement(StatementRecord $record): array
     {
+        $expensePayer = optional(optional($record->expense)->paidByUser)->name;
+        $settlementFrom = optional(optional($record->settlement)->fromUser)->name;
+        $settlementTo = optional(optional($record->settlement)->toUser)->name;
+
         return [
             'id' => $record->uuid ?? (string) $record->id,
             'user_id' => optional($record->user)?->uuid ?? (string) $record->user_id,
+            'user_name' => optional($record->user)?->name,
             'type' => $record->transaction_type,
             'description' => $record->description,
             'amount_cents' => (int) ($record->amount_cents ?? 0),
             'balance_before_cents' => (int) ($record->balance_before_cents ?? 0),
             'balance_after_cents' => (int) ($record->balance_after_cents ?? 0),
             'balance_change_cents' => (int) ($record->balance_change_cents ?? 0),
+            'paid_by_user_name' => $expensePayer,
+            'from_user_name' => $settlementFrom,
+            'to_user_name' => $settlementTo,
             'transaction_date' => optional($record->transaction_date)?->toIso8601String(),
             'created_at' => optional($record->created_at)?->toIso8601String(),
         ];
