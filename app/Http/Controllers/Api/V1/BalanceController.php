@@ -20,9 +20,18 @@ class BalanceController extends Controller
     public function snapshot(Request $request, Group $group)
     {
         $snapshot = $this->balanceService->calculateSnapshot($group);
+        $summaries = collect($snapshot['summaries'] ?? [])
+            ->map(function (array $summary): array {
+                $summary['owes'] = (object) ($summary['owes'] ?? []);
+                $summary['owed_by'] = (object) ($summary['owed_by'] ?? []);
+
+                return $summary;
+            })
+            ->values()
+            ->all();
 
         return response()->json([
-            'summaries' => array_values($snapshot['summaries']),
+            'summaries' => $summaries,
             'suggestions' => array_values($snapshot['suggestions']),
         ]);
     }
