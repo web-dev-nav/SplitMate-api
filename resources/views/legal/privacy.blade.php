@@ -90,7 +90,7 @@
                 <a href="{{ route('legal.privacy') }}">Privacy Policy</a>
             </div>
             <h1>SplitMate Privacy Policy</h1>
-            <div class="meta">Last updated: April 27, 2026</div>
+            <div class="meta">Version 1.0 • Last updated: April 27, 2026</div>
 
             <p>This Privacy Policy explains how SplitMate collects, uses, and protects your information when you use our iOS app and related services.</p>
 
