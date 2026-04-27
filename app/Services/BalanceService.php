@@ -223,19 +223,19 @@ class BalanceService
             // Per-person share + portion of remainder (first participants get +1)
             $share = $perPersonCents + ($idx < $remainderCents ? 1 : 0);
 
-            // Check if participant already owes payer (reverse debt)
-            if (isset($matrix[$participant->id][$expense->paid_by_user_id]) && $matrix[$participant->id][$expense->paid_by_user_id] > 0) {
-                // Reduce the reverse debt first
-                $reverseDebt = $matrix[$participant->id][$expense->paid_by_user_id];
+            // Participant owes payer for this share.
+            // If payer currently owes participant, net that reverse debt first.
+            if (isset($matrix[$expense->paid_by_user_id][$participant->id]) && $matrix[$expense->paid_by_user_id][$participant->id] > 0) {
+                $reverseDebt = $matrix[$expense->paid_by_user_id][$participant->id];
+
                 if ($share > $reverseDebt) {
-                    $matrix[$participant->id][$expense->paid_by_user_id] = 0;
-                    $matrix[$expense->paid_by_user_id][$participant->id] += ($share - $reverseDebt);
+                    $matrix[$expense->paid_by_user_id][$participant->id] = 0;
+                    $matrix[$participant->id][$expense->paid_by_user_id] += ($share - $reverseDebt);
                 } else {
-                    $matrix[$participant->id][$expense->paid_by_user_id] -= $share;
+                    $matrix[$expense->paid_by_user_id][$participant->id] -= $share;
                 }
             } else {
-                // Add new debt
-                $matrix[$expense->paid_by_user_id][$participant->id] += $share;
+                $matrix[$participant->id][$expense->paid_by_user_id] += $share;
             }
         }
     }
