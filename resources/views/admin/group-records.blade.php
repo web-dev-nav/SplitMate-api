@@ -161,9 +161,21 @@
                 </tbody>
             </table>
             </div>
-            <div style="margin-top: 12px;">
-                {{ $expenses->links() }}
-            </div>
+            @if($expenses->lastPage() > 1)
+                <div style="margin-top: 12px; display:flex; justify-content:center; align-items:center; gap:10px; flex-wrap:wrap;">
+                    @if($expenses->onFirstPage())
+                        <span class="button" style="opacity:.45; pointer-events:none;">Previous</span>
+                    @else
+                        <a href="{{ $expenses->previousPageUrl() }}" class="button">Previous</a>
+                    @endif
+                    <span class="muted">Page {{ $expenses->currentPage() }} of {{ $expenses->lastPage() }}</span>
+                    @if($expenses->hasMorePages())
+                        <a href="{{ $expenses->nextPageUrl() }}" class="button">Next</a>
+                    @else
+                        <span class="button" style="opacity:.45; pointer-events:none;">Next</span>
+                    @endif
+                </div>
+            @endif
         @endif
     </div>
 
@@ -202,9 +214,21 @@
                 </tbody>
             </table>
             </div>
-            <div style="margin-top: 12px;">
-                {{ $settlements->links() }}
-            </div>
+            @if($settlements->lastPage() > 1)
+                <div style="margin-top: 12px; display:flex; justify-content:center; align-items:center; gap:10px; flex-wrap:wrap;">
+                    @if($settlements->onFirstPage())
+                        <span class="button" style="opacity:.45; pointer-events:none;">Previous</span>
+                    @else
+                        <a href="{{ $settlements->previousPageUrl() }}" class="button">Previous</a>
+                    @endif
+                    <span class="muted">Page {{ $settlements->currentPage() }} of {{ $settlements->lastPage() }}</span>
+                    @if($settlements->hasMorePages())
+                        <a href="{{ $settlements->nextPageUrl() }}" class="button">Next</a>
+                    @else
+                        <span class="button" style="opacity:.45; pointer-events:none;">Next</span>
+                    @endif
+                </div>
+            @endif
         @endif
     </div>
 
@@ -244,9 +268,21 @@
                     </div>
                 @endforeach
             </div>
-            <div style="margin-top: 12px;">
-                {{ $statements->links() }}
-            </div>
+            @if($statements->lastPage() > 1)
+                <div style="margin-top: 12px; display:flex; justify-content:center; align-items:center; gap:10px; flex-wrap:wrap;">
+                    @if($statements->onFirstPage())
+                        <span class="button" style="opacity:.45; pointer-events:none;">Previous</span>
+                    @else
+                        <a href="{{ $statements->previousPageUrl() }}" class="button">Previous</a>
+                    @endif
+                    <span class="muted">Page {{ $statements->currentPage() }} of {{ $statements->lastPage() }}</span>
+                    @if($statements->hasMorePages())
+                        <a href="{{ $statements->nextPageUrl() }}" class="button">Next</a>
+                    @else
+                        <span class="button" style="opacity:.45; pointer-events:none;">Next</span>
+                    @endif
+                </div>
+            @endif
         @endif
     </div>
 @endsection
