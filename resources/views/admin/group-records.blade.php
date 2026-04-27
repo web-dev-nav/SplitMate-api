@@ -151,7 +151,7 @@
                             </td>
                             <td>
                                 @if($expense->receipt_photo)
-                                    <a href="{{ url('storage/'.$expense->receipt_photo) }}" target="_blank">View</a>
+                                    <a href="{{ route('media.public', ['path' => $expense->receipt_photo]) }}" target="_blank">View</a>
                                 @else
                                     <span class="muted">None</span>
                                 @endif
@@ -204,7 +204,7 @@
                             <td>{{ number_format(($settlement->amount_cents ?? 0) / 100, 2) }}</td>
                             <td>
                                 @if($settlement->proof_photo)
-                                    <a href="{{ url('storage/'.$settlement->proof_photo) }}" target="_blank">View</a>
+                                    <a href="{{ route('media.public', ['path' => $settlement->proof_photo]) }}" target="_blank">View</a>
                                 @else
                                     <span class="muted">None</span>
                                 @endif

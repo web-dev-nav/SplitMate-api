@@ -3,10 +3,14 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LegacyImportController;
+use App\Http\Controllers\PublicMediaController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/terms-and-conditions', 'legal.terms')->name('legal.terms');
 Route::view('/privacy-policy', 'legal.privacy')->name('legal.privacy');
+Route::get('/media/public/{path}', [PublicMediaController::class, 'show'])
+    ->where('path', '.*')
+    ->name('media.public');
 
 Route::redirect('/', '/admin');
 

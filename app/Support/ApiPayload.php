@@ -7,10 +7,17 @@ use App\Models\Group;
 use App\Models\Settlement;
 use App\Models\StatementRecord;
 use App\Models\User;
-use Illuminate\Support\Facades\Storage;
-
 class ApiPayload
 {
+    private static function publicMediaUrl(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        return route('media.public', ['path' => ltrim((string) $path, '/')]);
+    }
+
     public static function user(User $user): array
     {
         return [
@@ -63,7 +70,7 @@ class ApiPayload
             'expense_date' => optional($expense->expense_date)?->toDateString(),
             'category' => $expense->category,
             'participant_ids' => $expense->participant_ids ?? [],
-            'receipt_photo_url' => $expense->receipt_photo ? Storage::disk('public')->url($expense->receipt_photo) : null,
+            'receipt_photo_url' => self::publicMediaUrl($expense->receipt_photo),
             'created_at' => optional($expense->created_at)?->toIso8601String(),
             'updated_at' => optional($expense->updated_at)?->toIso8601String(),
         ];
@@ -79,7 +86,7 @@ class ApiPayload
             'to_user_id' => optional($settlement->toUser)?->uuid,
             'to_user_name' => optional($settlement->toUser)?->name,
             'amount_cents' => (int) $settlement->amount_cents,
-            'proof_photo_url' => $settlement->proof_photo ? Storage::disk('public')->url($settlement->proof_photo) : null,
+            'proof_photo_url' => self::publicMediaUrl($settlement->proof_photo),
             'settlement_date' => optional($settlement->settlement_date)?->toDateString(),
             'created_at' => optional($settlement->created_at)?->toIso8601String(),
             'updated_at' => optional($settlement->updated_at)?->toIso8601String(),
