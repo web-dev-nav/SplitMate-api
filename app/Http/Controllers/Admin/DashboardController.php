@@ -212,7 +212,7 @@ class DashboardController extends Controller
             'settlements.toUser',
         ]);
 
-        $snapshot = $this->normalizeSnapshotForDisplay($this->balanceService->calculateSnapshot($group));
+        $snapshot = $this->balanceService->calculateSnapshot($group);
         $statements = $group->statementRecords()
             ->with('user')
             ->latest('transaction_date')
@@ -254,7 +254,7 @@ class DashboardController extends Controller
             ->paginate(30, ['*'], 'statements_page')
             ->withQueryString();
 
-        $snapshot = $this->normalizeSnapshotForDisplay($this->balanceService->calculateSnapshot($group));
+        $snapshot = $this->balanceService->calculateSnapshot($group);
 
         return view('admin.group-records', [
             'group' => $group,
@@ -293,27 +293,4 @@ class DashboardController extends Controller
         return view('admin.api-docs', compact('baseUrl', 'endpoints'));
     }
 
-    /**
-     * Normalize balance snapshot for human-readable credit/debit display.
-     */
-    private function normalizeSnapshotForDisplay(array $snapshot): array
-    {
-        $summaries = collect($snapshot['summaries'] ?? [])
-            ->map(function (array $summary): array {
-                return [
-                    'user_id' => $summary['user_id'] ?? null,
-                    'user_name' => $summary['user_name'] ?? null,
-                    // BalanceService internal direction is opposite of business wording.
-                    'owes' => $summary['owed_by'] ?? [],
-                    'owed_by' => $summary['owes'] ?? [],
-                    'net_balance_cents' => -1 * (int) ($summary['net_balance_cents'] ?? 0),
-                ];
-            })
-            ->values()
-            ->all();
-
-        $snapshot['summaries'] = $summaries;
-
-        return $snapshot;
-    }
 }
