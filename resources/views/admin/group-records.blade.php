@@ -12,19 +12,19 @@
     <div class="grid cards">
         <div class="panel">
             <div class="kicker">Members</div>
-            <div class="stat">{{ $group->members->count() }}</div>
+            <div class="stat">{{ $members->count() }}</div>
         </div>
         <div class="panel">
             <div class="kicker">Expenses</div>
-            <div class="stat">{{ $group->expenses->count() }}</div>
+            <div class="stat">{{ $expenses->total() }}</div>
         </div>
         <div class="panel">
             <div class="kicker">Settlements</div>
-            <div class="stat">{{ $group->settlements->count() }}</div>
+            <div class="stat">{{ $settlements->total() }}</div>
         </div>
         <div class="panel">
             <div class="kicker">Statement Records</div>
-            <div class="stat">{{ $statements->count() }}</div>
+            <div class="stat">{{ $statements->total() }}</div>
         </div>
     </div>
 
@@ -94,9 +94,10 @@
 
     <div class="panel" style="margin-top: 18px;">
         <h2>All Receipts / Expenses By Members</h2>
-        @if($group->expenses->isEmpty())
+        @if($expenses->isEmpty())
             <div class="empty">No expenses found for this group.</div>
         @else
+            <div style="border:1px solid var(--line); border-radius:14px; overflow:hidden;">
             <table class="table">
                 <thead>
                     <tr>
@@ -110,17 +111,17 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($group->expenses as $expense)
+                    @foreach($expenses as $expense)
                         @php
                             $participantUuids = collect($expense->participant_ids ?? [])->filter()->values();
                             if ($participantUuids->isEmpty()) {
-                                $participantUuids = $group->members->pluck('uuid')->sort()->values();
+                                $participantUuids = $members->pluck('uuid')->sort()->values();
                             } else {
                                 $participantUuids = $participantUuids->sort()->values();
                             }
 
-                            $participantNames = $participantUuids->map(function ($uuid) use ($group) {
-                                return optional($group->members->firstWhere('uuid', $uuid))->name ?? $uuid;
+                            $participantNames = $participantUuids->map(function ($uuid) use ($members) {
+                                return optional($members->firstWhere('uuid', $uuid))->name ?? $uuid;
                             })->all();
 
                             $participantCount = max(1, $participantUuids->count());
@@ -131,7 +132,7 @@
                             $splits = [];
                             foreach ($participantUuids as $index => $uuid) {
                                 $share = $baseShare + ($index < $remainder ? 1 : 0);
-                                $name = optional($group->members->firstWhere('uuid', $uuid))->name ?? $uuid;
+                                $name = optional($members->firstWhere('uuid', $uuid))->name ?? $uuid;
                                 $splits[] = $name . ': ' . number_format($share / 100, 2);
                             }
                         @endphp
@@ -159,14 +160,19 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
+            <div style="margin-top: 12px;">
+                {{ $expenses->links() }}
+            </div>
         @endif
     </div>
 
     <div class="panel" style="margin-top: 18px;">
         <h2>All Settlements By Members</h2>
-        @if($group->settlements->isEmpty())
+        @if($settlements->isEmpty())
             <div class="empty">No settlements found for this group.</div>
         @else
+            <div style="border:1px solid var(--line); border-radius:14px; overflow:hidden;">
             <table class="table">
                 <thead>
                     <tr>
@@ -178,7 +184,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($group->settlements as $settlement)
+                    @foreach($settlements as $settlement)
                         <tr>
                             <td>{{ optional($settlement->settlement_date)->format('Y-m-d') }}</td>
                             <td>{{ optional($settlement->fromUser)->name ?: 'Unknown' }}</td>
@@ -195,6 +201,10 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
+            <div style="margin-top: 12px;">
+                {{ $settlements->links() }}
+            </div>
         @endif
     </div>
 
@@ -233,6 +243,9 @@
                         </div>
                     </div>
                 @endforeach
+            </div>
+            <div style="margin-top: 12px;">
+                {{ $statements->links() }}
             </div>
         @endif
     </div>

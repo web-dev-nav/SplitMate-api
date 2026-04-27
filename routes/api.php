@@ -56,6 +56,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/groups/{group}/expenses', [ExpenseController::class, 'index']);
             Route::post('/groups/{group}/expenses', [ExpenseController::class, 'store']);
             Route::get('/groups/{group}/expenses/{expense}', [ExpenseController::class, 'show']);
+            Route::delete('/groups/{group}/expenses/{expense}', [ExpenseController::class, 'destroy']);
             Route::patch('/groups/{group}/expenses/{expense}/participants', [ExpenseController::class, 'updateParticipants']);
             Route::post('/groups/{group}/expenses/{expense}/receipt', [ExpenseController::class, 'uploadReceipt']);
             Route::delete('/groups/{group}/expenses/{expense}/receipt', [ExpenseController::class, 'deleteReceipt']);
@@ -65,6 +66,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/groups/{group}/settlements', [SettlementController::class, 'store']);
             Route::get('/groups/{group}/settlements/max-payable', [SettlementController::class, 'maxPayable']);
             Route::get('/groups/{group}/settlements/{settlement}', [SettlementController::class, 'show']);
+            Route::delete('/groups/{group}/settlements/{settlement}', [SettlementController::class, 'destroy']);
 
             // Balance & Statements
             Route::get('/groups/{group}/balance', [BalanceController::class, 'snapshot']);

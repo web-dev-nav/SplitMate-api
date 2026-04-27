@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\Group;
+use App\Models\StatementRecord;
 use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ExpenseController extends Controller
@@ -192,8 +195,14 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Expense not found in this group'], 404);
         }
 
+        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Only the member who added this expense can modify or delete it.',
+            ], 403);
+        }
+
         if ($expense->receipt_photo) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($expense->receipt_photo);
+            Storage::disk('public')->delete($expense->receipt_photo);
         }
 
         $expense->update(['receipt_photo' => null]);
@@ -201,6 +210,36 @@ class ExpenseController extends Controller
         return response()->json([
             'expense' => ApiPayload::expense($expense->load('paidByUser')),
             'message' => 'Receipt deleted successfully',
+        ]);
+    }
+
+    /**
+     * Delete an expense record (owner only).
+     */
+    public function destroy(Request $request, Group $group, Expense $expense)
+    {
+        if ($expense->group_id !== $group->id) {
+            return response()->json(['message' => 'Expense not found in this group'], 404);
+        }
+
+        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Only the member who added this expense can delete it.',
+            ], 403);
+        }
+
+        DB::transaction(function () use ($expense) {
+            StatementRecord::where('expense_id', $expense->id)->delete();
+
+            if ($expense->receipt_photo) {
+                Storage::disk('public')->delete($expense->receipt_photo);
+            }
+
+            $expense->delete();
+        });
+
+        return response()->json([
+            'message' => 'Expense deleted successfully.',
         ]);
     }
 }

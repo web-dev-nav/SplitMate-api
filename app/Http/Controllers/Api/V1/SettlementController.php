@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Group;
 use App\Models\Settlement;
+use App\Models\StatementRecord;
 use App\Models\User;
 use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -127,6 +130,36 @@ class SettlementController extends Controller
             'from_user_id' => $fromUser->uuid,
             'to_user_id' => $toUser->uuid,
             'max_payable_cents' => $maxAmount,
+        ]);
+    }
+
+    /**
+     * Delete settlement record (payer only).
+     */
+    public function destroy(Request $request, Group $group, Settlement $settlement)
+    {
+        if ($settlement->group_id !== $group->id) {
+            return response()->json(['message' => 'Settlement not found in this group'], 404);
+        }
+
+        if ((int) $settlement->from_user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Only the member who created this settlement can delete it.',
+            ], 403);
+        }
+
+        DB::transaction(function () use ($settlement) {
+            StatementRecord::where('settlement_id', $settlement->id)->delete();
+
+            if (!empty($settlement->proof_photo)) {
+                Storage::disk('public')->delete((string) $settlement->proof_photo);
+            }
+
+            $settlement->delete();
+        });
+
+        return response()->json([
+            'message' => 'Settlement deleted successfully.',
         ]);
     }
 }

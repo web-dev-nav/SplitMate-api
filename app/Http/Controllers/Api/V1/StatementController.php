@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Group;
+use App\Models\User;
 use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 
 class StatementController extends Controller
 {
@@ -24,10 +24,13 @@ class StatementController extends Controller
             'user_id' => 'nullable|string|exists:users,uuid',
         ]);
 
-        // Convert user UUID to ID if provided
+        // Default to authenticated user so mobile history reflects personal spend/impact.
+        $targetUserUuid = $validated['user_id'] ?? $request->user()?->uuid;
+
+        // Convert user UUID to ID if provided/resolved
         $userId = null;
-        if ($validated['user_id'] ?? false) {
-            $user = \App\Models\User::where('uuid', $validated['user_id'])->first();
+        if ($targetUserUuid) {
+            $user = User::where('uuid', $targetUserUuid)->first();
             if ($user) {
                 $userId = $user->id;
             }
@@ -53,7 +56,7 @@ class StatementController extends Controller
             ]);
         }
 
-        $items = $this->buildFallbackFeed($group, $validated['user_id'] ?? null);
+        $items = $this->buildFallbackFeed($group, $targetUserUuid);
 
         return response()->json([
             'statements' => $items,
@@ -68,6 +71,10 @@ class StatementController extends Controller
 
     private function buildFallbackFeed(Group $group, ?string $userUuid): array
     {
+        if ($userUuid) {
+            return $this->buildFallbackFeedForUser($group, $userUuid);
+        }
+
         $expenses = $group->expenses()
             ->with('paidByUser')
             ->get()
@@ -119,6 +126,102 @@ class StatementController extends Controller
                     'created_at' => optional($settlement->created_at)?->toIso8601String(),
                 ];
             });
+
+        return $expenses
+            ->concat($settlements)
+            ->sortByDesc('transaction_date')
+            ->values()
+            ->all();
+    }
+
+    private function buildFallbackFeedForUser(Group $group, string $userUuid): array
+    {
+        $memberUuidToName = $group->members()
+            ->wherePivot('is_active', true)
+            ->pluck('name', 'uuid');
+
+        $expenses = $group->expenses()
+            ->with('paidByUser')
+            ->get()
+            ->map(function ($expense) use ($userUuid, $memberUuidToName) {
+                $participantUuids = collect($expense->participant_ids ?? [])
+                    ->filter()
+                    ->map(fn ($id) => (string) $id)
+                    ->values();
+
+                if ($participantUuids->isEmpty()) {
+                    $participantUuids = collect($memberUuidToName->keys())->values();
+                }
+
+                $participantUuids = $participantUuids->sort()->values();
+                $payerUuid = (string) ($expense->paidByUser?->uuid ?? '');
+
+                if ($payerUuid !== $userUuid && !$participantUuids->contains($userUuid)) {
+                    return null;
+                }
+
+                $participantCount = max(1, $participantUuids->count());
+                $totalCents = (int) ($expense->amount_cents ?? 0);
+                $baseShare = intdiv($totalCents, $participantCount);
+                $remainder = $totalCents % $participantCount;
+
+                $userShareCents = 0;
+                foreach ($participantUuids as $idx => $participantUuid) {
+                    if ($participantUuid === $userUuid) {
+                        $userShareCents = $baseShare + ($idx < $remainder ? 1 : 0);
+                        break;
+                    }
+                }
+
+                $impactCents = $payerUuid === $userUuid
+                    ? ($totalCents - $userShareCents)
+                    : (-1 * $userShareCents);
+
+                return [
+                    'id' => (string) $expense->uuid,
+                    'user_id' => $userUuid,
+                    'type' => 'expense',
+                    'description' => 'Expense: '.$expense->title,
+                    'amount_cents' => $impactCents,
+                    'balance_before_cents' => 0,
+                    'balance_after_cents' => 0,
+                    'balance_change_cents' => $impactCents,
+                    'transaction_date' => optional($expense->expense_date)?->toIso8601String(),
+                    'created_at' => optional($expense->created_at)?->toIso8601String(),
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $settlements = $group->settlements()
+            ->with(['fromUser', 'toUser'])
+            ->get()
+            ->map(function ($settlement) use ($userUuid) {
+                $fromUuid = (string) ($settlement->fromUser?->uuid ?? '');
+                $toUuid = (string) ($settlement->toUser?->uuid ?? '');
+                $amountCents = (int) ($settlement->amount_cents ?? 0);
+
+                if ($fromUuid !== $userUuid && $toUuid !== $userUuid) {
+                    return null;
+                }
+
+                $impactCents = $fromUuid === $userUuid ? (-1 * $amountCents) : $amountCents;
+
+                return [
+                    'id' => (string) $settlement->uuid,
+                    'user_id' => $userUuid,
+                    'type' => 'settlement',
+                    'description' => 'Settlement: '.($settlement->fromUser?->name ?? 'Unknown').' -> '.($settlement->toUser?->name ?? 'Unknown'),
+                    'amount_cents' => $impactCents,
+                    'balance_before_cents' => 0,
+                    'balance_after_cents' => 0,
+                    'balance_change_cents' => $impactCents,
+                    'transaction_date' => optional($settlement->settlement_date)?->toIso8601String(),
+                    'created_at' => optional($settlement->created_at)?->toIso8601String(),
+                ];
+            })
+            ->filter()
+            ->values();
 
         return $expenses
             ->concat($settlements)
