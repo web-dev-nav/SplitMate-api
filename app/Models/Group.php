@@ -24,6 +24,7 @@ class Group extends Model
         'created_by_user_id',
         'currency_code',
         'expense_categories',
+        'email_notifications',
     ];
 
     protected $hidden = [];
@@ -34,6 +35,7 @@ class Group extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'expense_categories' => 'array',
+            'email_notifications' => 'boolean',
         ];
     }
 

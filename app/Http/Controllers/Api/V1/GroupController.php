@@ -291,6 +291,7 @@ class GroupController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'currency_code' => 'sometimes|required|string|size:3',
             'owner_user_id' => 'sometimes|required|string|exists:users,uuid',
+            'email_notifications' => 'sometimes|boolean',
         ]);
 
         $updates = [];
@@ -299,6 +300,9 @@ class GroupController extends Controller
         }
         if (array_key_exists('currency_code', $validated)) {
             $updates['currency_code'] = strtoupper($validated['currency_code']);
+        }
+        if (array_key_exists('email_notifications', $validated)) {
+            $updates['email_notifications'] = (bool) $validated['email_notifications'];
         }
 
         if (array_key_exists('owner_user_id', $validated)) {

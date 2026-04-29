@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ExpenseCreatedMail;
 use App\Models\Expense;
 use App\Models\Group;
 use App\Models\StatementRecord;
@@ -10,6 +11,7 @@ use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -114,6 +116,26 @@ class ExpenseController extends Controller
             'user_count_at_time' => count($activeMemberUuids),
         ]);
         $expense->load('paidByUser');
+
+        // Send email notifications to active group members (excluding the payer)
+        if ($group->email_notifications) {
+            $paidByName = optional($expense->paidByUser)->name ?? 'Someone';
+            $activeMembers = $group->members()
+                ->wherePivot('is_active', true)
+                ->where('users.id', '!=', $paidByUser->id)
+                ->whereNotNull('users.email')
+                ->get();
+
+            foreach ($activeMembers as $member) {
+                try {
+                    Mail::to($member->email)->send(
+                        new ExpenseCreatedMail($expense, $group, $member, $paidByName)
+                    );
+                } catch (\Throwable) {
+                    // Never fail the request due to email errors
+                }
+            }
+        }
 
         return response()->json([
             'expense' => ApiPayload::expense($expense),

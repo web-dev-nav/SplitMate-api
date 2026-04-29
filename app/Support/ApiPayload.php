@@ -41,6 +41,7 @@ class ApiPayload
             'currency_code' => $group->currency_code,
             'expense_categories' => $group->expense_categories ?? \App\Models\Group::defaultExpenseCategories(),
             'created_by_user_id' => optional($group->creator)?->uuid ?? (string) $group->created_by_user_id,
+            'email_notifications' => (bool) ($group->email_notifications ?? false),
             'created_at' => optional($group->created_at)?->toIso8601String(),
             'updated_at' => optional($group->updated_at)?->toIso8601String(),
         ];
