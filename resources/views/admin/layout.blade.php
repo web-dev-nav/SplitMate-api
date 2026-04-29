@@ -79,6 +79,7 @@
                 <a href="{{ route('admin.users') }}" class="{{ request()->routeIs('admin.users') ? 'active' : '' }}">Users</a>
                 <a href="{{ route('admin.groups') }}" class="{{ request()->routeIs('admin.groups') || request()->routeIs('admin.groups.show') ? 'active' : '' }}">Groups</a>
                 <a href="{{ route('admin.api-docs') }}" class="{{ request()->routeIs('admin.api-docs') ? 'active' : '' }}">API Access</a>
+                <a href="{{ route('admin.settings') }}" class="{{ request()->routeIs('admin.settings*') ? 'active' : '' }}">Settings</a>
             </nav>
         </aside>
         <main class="content">

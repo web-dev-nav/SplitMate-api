@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LegacyImportController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\PublicMediaController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,5 +37,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/api-access', [DashboardController::class, 'apiDocs'])->name('api-docs');
         Route::match(['get', 'post'], '/tools/legacy-import', LegacyImportController::class)
             ->name('tools.legacy-import');
+
+        // Settings
+        Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
+        Route::post('/settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');
+        Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->name('settings.smtp.test');
     });
 });
