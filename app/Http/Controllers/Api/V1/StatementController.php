@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class StatementController extends Controller
 {
@@ -47,8 +48,15 @@ class StatementController extends Controller
                 ->orderBy('id', 'desc')
                 ->paginate(50);
 
+            $items = collect($statements->items());
+            $snapshotByTransaction = $this->buildGroupSnapshots($group, $items);
+
             return response()->json([
-                'statements' => collect($statements->items())->map(fn ($statement) => ApiPayload::statement($statement))->values(),
+                'statements' => $items->map(function ($statement) use ($snapshotByTransaction) {
+                    $payload = ApiPayload::statement($statement);
+                    $payload['group_balance_snapshot'] = $snapshotByTransaction[$this->transactionKey($statement)] ?? [];
+                    return $payload;
+                })->values(),
                 'pagination' => [
                     'total' => $statements->total(),
                     'per_page' => $statements->perPage(),
@@ -141,6 +149,10 @@ class StatementController extends Controller
 
         return $expenses
             ->concat($settlements)
+            ->map(function ($item) {
+                $item['group_balance_snapshot'] = [];
+                return $item;
+            })
             ->sortByDesc('created_at')
             ->values()
             ->all();
@@ -249,8 +261,83 @@ class StatementController extends Controller
 
         return $expenses
             ->concat($settlements)
+            ->map(function ($item) {
+                $item['group_balance_snapshot'] = [];
+                return $item;
+            })
             ->sortByDesc('created_at')
             ->values()
             ->all();
+    }
+
+    private function buildGroupSnapshots(Group $group, Collection $visibleStatements): array
+    {
+        $expenseIds = $visibleStatements->pluck('expense_id')->filter()->unique()->values();
+        $settlementIds = $visibleStatements->pluck('settlement_id')->filter()->unique()->values();
+
+        if ($expenseIds->isEmpty() && $settlementIds->isEmpty()) {
+            return [];
+        }
+
+        $peerQuery = $group->statementRecords()->with('user');
+        $peerQuery->where(function ($q) use ($expenseIds, $settlementIds) {
+            if ($expenseIds->isNotEmpty()) {
+                $q->whereIn('expense_id', $expenseIds->all());
+            }
+            if ($settlementIds->isNotEmpty()) {
+                if ($expenseIds->isNotEmpty()) {
+                    $q->orWhereIn('settlement_id', $settlementIds->all());
+                } else {
+                    $q->whereIn('settlement_id', $settlementIds->all());
+                }
+            }
+        });
+
+        $peerRecords = $peerQuery->get();
+        $grouped = $peerRecords->groupBy(fn ($record) => $this->transactionKey($record));
+
+        $result = [];
+        foreach ($grouped as $key => $records) {
+            $result[$key] = $records
+                ->sortBy(fn ($record) => strtolower((string) optional($record->user)->name))
+                ->values()
+                ->map(function ($record) {
+                    $beforeCents = (int) (
+                        $record->balance_before_cents
+                        ?? ((float) ($record->balance_before ?? 0) * 100)
+                    );
+                    $afterCents = (int) (
+                        $record->balance_after_cents
+                        ?? ((float) ($record->balance_after ?? 0) * 100)
+                    );
+                    $changeCents = (int) (
+                        $record->balance_change_cents
+                        ?? ((float) ($record->balance_change ?? 0) * 100)
+                    );
+
+                    return [
+                        'user_id' => optional($record->user)?->uuid ?? (string) $record->user_id,
+                        'user_name' => optional($record->user)?->name ?? 'Unknown',
+                        'before_cents' => $beforeCents,
+                        'after_cents' => $afterCents,
+                        'change_cents' => $changeCents,
+                    ];
+                })
+                ->all();
+        }
+
+        return $result;
+    }
+
+    private function transactionKey($statement): string
+    {
+        if (!empty($statement->expense_id)) {
+            return 'expense:' . (string) $statement->expense_id;
+        }
+        if (!empty($statement->settlement_id)) {
+            return 'settlement:' . (string) $statement->settlement_id;
+        }
+
+        return (string) ($statement->id ?? '');
     }
 }
