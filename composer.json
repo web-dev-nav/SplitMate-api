@@ -59,6 +59,7 @@
         ],
         "deploy": [
             "@php artisan migrate --force --ansi",
+            "@php artisan statements:rebuild --ansi",
             "@php artisan config:cache --ansi",
             "@php artisan route:cache --ansi",
             "@php artisan view:cache --ansi"
