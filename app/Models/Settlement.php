@@ -53,6 +53,16 @@ class Settlement extends Model
             if (!$model->uuid) {
                 $model->uuid = Str::uuid();
             }
+
+            // Backward/forward compatibility across old and new create paths:
+            // ensure both amount columns are populated when either value exists.
+            if (($model->amount === null || $model->amount === '') && $model->amount_cents !== null) {
+                $model->amount = round(((int) $model->amount_cents) / 100, 2);
+            }
+
+            if (($model->amount_cents === null || $model->amount_cents === '') && $model->amount !== null) {
+                $model->amount_cents = (int) round(((float) $model->amount) * 100);
+            }
         });
     }
 }
