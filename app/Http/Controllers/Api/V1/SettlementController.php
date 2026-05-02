@@ -122,9 +122,10 @@ class SettlementController extends Controller
             return response()->json(['message' => 'Settlement not found in this group'], 404);
         }
 
-        if ((int) $settlement->from_user_id !== (int) $request->user()->id) {
+        $isGroupOwner = $this->isGroupOwner($group, $request->user()->id);
+        if (!$isGroupOwner && (int) $settlement->from_user_id !== (int) $request->user()->id) {
             return response()->json([
-                'message' => 'Only the member who created this settlement can edit it.',
+                'message' => 'Only the member who created this settlement or the group owner can edit it.',
             ], 403);
         }
 
@@ -136,9 +137,9 @@ class SettlementController extends Controller
             'proof_photo' => 'nullable|image|max:15360',
         ]);
 
-        if ($validated['from_user_id'] !== (string) $request->user()->uuid) {
+        if (!$isGroupOwner && $validated['from_user_id'] !== (string) $request->user()->uuid) {
             return response()->json([
-                'message' => 'You can only edit settlements you paid from your own account.',
+                'message' => 'You can only edit settlements you paid from your own account unless you are the group owner.',
             ], 422);
         }
 
@@ -194,9 +195,12 @@ class SettlementController extends Controller
             return response()->json(['message' => 'Settlement not found in this group'], 404);
         }
 
-        if ((int) $settlement->from_user_id !== (int) $request->user()->id) {
+        if (
+            !$this->isGroupOwner($group, $request->user()->id) &&
+            (int) $settlement->from_user_id !== (int) $request->user()->id
+        ) {
             return response()->json([
-                'message' => 'Only the member who created this settlement can delete it.',
+                'message' => 'Only the member who created this settlement or the group owner can delete it.',
             ], 403);
         }
 
@@ -279,5 +283,10 @@ class SettlementController extends Controller
             'owes_lines' => $owesLines,
             'owed_by_lines' => $owedByLines,
         ];
+    }
+
+    private function isGroupOwner(Group $group, int $userId): bool
+    {
+        return (int) $group->created_by_user_id === $userId;
     }
 }

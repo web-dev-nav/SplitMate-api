@@ -155,9 +155,10 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Expense not found in this group'], 404);
         }
 
-        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+        $isGroupOwner = $this->isGroupOwner($group, $request->user()->id);
+        if (!$isGroupOwner && (int) $expense->paid_by_user_id !== (int) $request->user()->id) {
             return response()->json([
-                'message' => 'Only the member who added this expense can edit it.',
+                'message' => 'Only the member who added this expense or the group owner can edit it.',
             ], 403);
         }
 
@@ -171,9 +172,9 @@ class ExpenseController extends Controller
             'participant_ids.*' => 'string|exists:users,uuid',
         ]);
 
-        if ($validated['paid_by_user_id'] !== (string) $request->user()->uuid) {
+        if (!$isGroupOwner && $validated['paid_by_user_id'] !== (string) $request->user()->uuid) {
             return response()->json([
-                'message' => 'You can only edit expenses you paid from your own account.',
+                'message' => 'You can only edit expenses you paid from your own account unless you are the group owner.',
             ], 422);
         }
 
@@ -239,9 +240,12 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Expense not found in this group'], 404);
         }
 
-        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+        if (
+            !$this->isGroupOwner($group, $request->user()->id) &&
+            (int) $expense->paid_by_user_id !== (int) $request->user()->id
+        ) {
             return response()->json([
-                'message' => 'Only the member who added this expense can edit it.',
+                'message' => 'Only the member who added this expense or the group owner can edit it.',
             ], 403);
         }
 
@@ -291,9 +295,12 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Expense not found in this group'], 404);
         }
 
-        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+        if (
+            !$this->isGroupOwner($group, $request->user()->id) &&
+            (int) $expense->paid_by_user_id !== (int) $request->user()->id
+        ) {
             return response()->json([
-                'message' => 'Only the member who added this expense can modify or delete it.',
+                'message' => 'Only the member who added this expense or the group owner can modify or delete it.',
             ], 403);
         }
 
@@ -326,9 +333,12 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Expense not found in this group'], 404);
         }
 
-        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+        if (
+            !$this->isGroupOwner($group, $request->user()->id) &&
+            (int) $expense->paid_by_user_id !== (int) $request->user()->id
+        ) {
             return response()->json([
-                'message' => 'Only the member who added this expense can modify or delete it.',
+                'message' => 'Only the member who added this expense or the group owner can modify or delete it.',
             ], 403);
         }
 
@@ -353,9 +363,12 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Expense not found in this group'], 404);
         }
 
-        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+        if (
+            !$this->isGroupOwner($group, $request->user()->id) &&
+            (int) $expense->paid_by_user_id !== (int) $request->user()->id
+        ) {
             return response()->json([
-                'message' => 'Only the member who added this expense can delete it.',
+                'message' => 'Only the member who added this expense or the group owner can delete it.',
             ], 403);
         }
 
@@ -462,5 +475,10 @@ class ExpenseController extends Controller
             'owes_lines' => $owesLines,
             'owed_by_lines' => $owedByLines,
         ];
+    }
+
+    private function isGroupOwner(Group $group, int $userId): bool
+    {
+        return (int) $group->created_by_user_id === $userId;
     }
 }
