@@ -100,6 +100,19 @@ class ApiPayload
         $settlementFrom = optional(optional($record->settlement)->fromUser)->name;
         $settlementTo = optional(optional($record->settlement)->toUser)->name;
 
+        $originalAmountCents = 0;
+        if ($record->expense) {
+            $originalAmountCents = (int) (
+                $record->expense->amount_cents
+                ?? ((float) ($record->expense->amount ?? 0) * 100)
+            );
+        } elseif ($record->settlement) {
+            $originalAmountCents = (int) (
+                $record->settlement->amount_cents
+                ?? ((float) ($record->settlement->amount ?? 0) * 100)
+            );
+        }
+
         return [
             'id' => $record->uuid ?? (string) $record->id,
             'user_id' => optional($record->user)?->uuid ?? (string) $record->user_id,
@@ -107,6 +120,11 @@ class ApiPayload
             'type' => $record->transaction_type,
             'description' => $record->description,
             'amount_cents' => (int) ($record->amount_cents ?? 0),
+            'original_amount_cents' => (int) (
+                $originalAmountCents > 0
+                ? $originalAmountCents
+                : ($record->amount_cents ?? 0)
+            ),
             'balance_before_cents' => (int) ($record->balance_before_cents ?? 0),
             'balance_after_cents' => (int) ($record->balance_after_cents ?? 0),
             'balance_change_cents' => (int) ($record->balance_change_cents ?? 0),

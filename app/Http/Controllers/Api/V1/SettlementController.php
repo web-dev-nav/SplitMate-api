@@ -81,15 +81,23 @@ class SettlementController extends Controller
         // Create settlement
         $proofPath = $request->file('proof_photo')->store('settlement-proofs', 'public');
 
-        $settlement = Settlement::create([
-            'uuid' => Str::uuid(),
-            'group_id' => $group->id,
-            'from_user_id' => $fromUser->id,
-            'to_user_id' => $toUser->id,
-            'amount_cents' => $validated['amount_cents'],
-            'settlement_date' => $validated['settlement_date'],
-            'proof_photo' => $proofPath,
-        ]);
+        $settlement = DB::transaction(function () use ($group, $validated, $fromUser, $toUser, $proofPath) {
+            $settlement = Settlement::create([
+                'uuid' => Str::uuid(),
+                'group_id' => $group->id,
+                'from_user_id' => $fromUser->id,
+                'to_user_id' => $toUser->id,
+                'amount_cents' => $validated['amount_cents'],
+                // Backward compatibility: some databases still enforce legacy decimal `amount`.
+                'amount' => $validated['amount_cents'] / 100,
+                'settlement_date' => $validated['settlement_date'],
+                'proof_photo' => $proofPath,
+            ]);
+
+            $this->balanceService->createStatementRecords($group, settlement: $settlement);
+
+            return $settlement;
+        });
         $settlement->load(['fromUser', 'toUser']);
 
         return response()->json([

@@ -100,21 +100,27 @@ class ExpenseController extends Controller
             }
         }
 
-        // Create expense
-        $expense = Expense::create([
-            'uuid' => Str::uuid(),
-            'group_id' => $group->id,
-            'title' => $validated['title'],
-            // Backward compatibility for legacy schema where description/amount are required.
-            'description' => $validated['title'],
-            'amount_cents' => $validated['amount_cents'],
-            'amount' => round($validated['amount_cents'] / 100, 2),
-            'paid_by_user_id' => $paidByUser->id,
-            'expense_date' => $validated['expense_date'],
-            'category' => $category,
-            'participant_ids' => $participantIds,
-            'user_count_at_time' => count($activeMemberUuids),
-        ]);
+        // Create expense + statement records atomically.
+        $expense = DB::transaction(function () use ($group, $validated, $paidByUser, $category, $participantIds, $activeMemberUuids) {
+            $expense = Expense::create([
+                'uuid' => Str::uuid(),
+                'group_id' => $group->id,
+                'title' => $validated['title'],
+                // Backward compatibility for legacy schema where description/amount are required.
+                'description' => $validated['title'],
+                'amount_cents' => $validated['amount_cents'],
+                'amount' => round($validated['amount_cents'] / 100, 2),
+                'paid_by_user_id' => $paidByUser->id,
+                'expense_date' => $validated['expense_date'],
+                'category' => $category,
+                'participant_ids' => $participantIds,
+                'user_count_at_time' => count($activeMemberUuids),
+            ]);
+
+            $this->balanceService->createStatementRecords($group, expense: $expense);
+
+            return $expense;
+        });
         $expense->load('paidByUser');
 
         // Send email notifications to active group members (excluding the payer)

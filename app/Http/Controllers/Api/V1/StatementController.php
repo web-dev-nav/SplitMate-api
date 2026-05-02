@@ -42,7 +42,9 @@ class StatementController extends Controller
 
         if ($query->exists()) {
             $statements = $query
-                ->orderBy('transaction_date', 'desc')
+                // Bank-style feed: newest recorded entries first.
+                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc')
                 ->paginate(50);
 
             return response()->json([
@@ -94,6 +96,7 @@ class StatementController extends Controller
                     'type' => 'expense',
                     'description' => 'Expense: '.$expense->title,
                     'amount_cents' => (int) ($expense->amount_cents ?? 0),
+                    'original_amount_cents' => (int) ($expense->amount_cents ?? 0),
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => 0,
@@ -124,6 +127,7 @@ class StatementController extends Controller
                     'type' => 'settlement',
                     'description' => 'Settlement: '.($settlement->fromUser?->name ?? 'Unknown').' -> '.($settlement->toUser?->name ?? 'Unknown'),
                     'amount_cents' => (int) ($settlement->amount_cents ?? 0),
+                    'original_amount_cents' => (int) ($settlement->amount_cents ?? 0),
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => 0,
@@ -137,7 +141,7 @@ class StatementController extends Controller
 
         return $expenses
             ->concat($settlements)
-            ->sortByDesc('transaction_date')
+            ->sortByDesc('created_at')
             ->values()
             ->all();
     }
@@ -192,6 +196,7 @@ class StatementController extends Controller
                     'type' => 'expense',
                     'description' => 'Expense: '.$expense->title,
                     'amount_cents' => $impactCents,
+                    'original_amount_cents' => $totalCents,
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => $impactCents,
@@ -228,6 +233,7 @@ class StatementController extends Controller
                     'type' => 'settlement',
                     'description' => 'Settlement: '.($settlement->fromUser?->name ?? 'Unknown').' -> '.($settlement->toUser?->name ?? 'Unknown'),
                     'amount_cents' => $impactCents,
+                    'original_amount_cents' => $amountCents,
                     'balance_before_cents' => 0,
                     'balance_after_cents' => 0,
                     'balance_change_cents' => $impactCents,
@@ -243,7 +249,7 @@ class StatementController extends Controller
 
         return $expenses
             ->concat($settlements)
-            ->sortByDesc('transaction_date')
+            ->sortByDesc('created_at')
             ->values()
             ->all();
     }

@@ -394,23 +394,142 @@ class BalanceService
 
     private function calculateExpenseImpact(Expense $expense, int $userId): int
     {
-        // Simplified - would calculate actual impact
+        $participants = $this->resolveExpenseParticipantIds($expense);
+        if (empty($participants)) {
+            return 0;
+        }
+
+        $totalCents = (int) ($expense->amount_cents ?? 0);
+        $participantCount = count($participants);
+        $baseShare = intdiv($totalCents, $participantCount);
+        $remainder = $totalCents % $participantCount;
+
+        $userShare = 0;
+        foreach ($participants as $idx => $participantId) {
+            if ((int) $participantId === $userId) {
+                $userShare = $baseShare + ($idx < $remainder ? 1 : 0);
+                break;
+            }
+        }
+
+        $isPayer = (int) $expense->paid_by_user_id === $userId;
+        $isParticipant = in_array($userId, $participants, true);
+
+        if ($isPayer) {
+            // Positive means this user should receive from others.
+            return $totalCents - $userShare;
+        }
+
+        if ($isParticipant) {
+            // Negative means this user owes share.
+            return -1 * $userShare;
+        }
+
         return 0;
     }
 
     private function calculateSettlementImpact(Settlement $settlement, int $userId): int
     {
-        // Simplified
+        $amount = (int) ($settlement->amount_cents ?? 0);
+        if ((int) $settlement->from_user_id === $userId) {
+            return -1 * $amount;
+        }
+        if ((int) $settlement->to_user_id === $userId) {
+            return $amount;
+        }
         return 0;
     }
 
     private function formatExpenseDescription(Expense $expense, int $userId): string
     {
+        if ((int) $expense->paid_by_user_id === $userId) {
+            return "You paid: {$expense->title}";
+        }
+
+        if (in_array($userId, $this->resolveExpenseParticipantIds($expense), true)) {
+            return "Your share: {$expense->title}";
+        }
+
         return "Expense: {$expense->title}";
     }
 
     private function formatSettlementDescription(Settlement $settlement, int $userId): string
     {
-        return "Settlement";
+        $fromName = $settlement->fromUser?->name ?? 'Unknown';
+        $toName = $settlement->toUser?->name ?? 'Unknown';
+
+        if ((int) $settlement->from_user_id === $userId) {
+            return "You paid {$toName}";
+        }
+
+        if ((int) $settlement->to_user_id === $userId) {
+            return "Received from {$fromName}";
+        }
+
+        return "Settlement: {$fromName} -> {$toName}";
+    }
+
+    /**
+     * Resolve expense participants to user IDs sorted by UUID to match split logic.
+     *
+     * @return array<int>
+     */
+    private function resolveExpenseParticipantIds(Expense $expense): array
+    {
+        $group = $expense->group;
+        if (!$group) {
+            return [];
+        }
+
+        $rawParticipants = collect($expense->participant_ids ?? [])
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->map(fn ($value) => (string) $value)
+            ->values();
+
+        if ($rawParticipants->isEmpty()) {
+            return $group->members()
+                ->wherePivot('is_active', true)
+                ->orderBy('users.uuid')
+                ->pluck('users.id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        $uuidValues = $rawParticipants
+            ->filter(fn ($value) => !ctype_digit($value))
+            ->values()
+            ->all();
+        $numericValues = $rawParticipants
+            ->filter(fn ($value) => ctype_digit($value))
+            ->map(fn ($value) => (int) $value)
+            ->values()
+            ->all();
+
+        $idsFromUuids = [];
+        if (!empty($uuidValues)) {
+            $idsFromUuids = User::whereIn('uuid', $uuidValues)
+                ->orderBy('uuid')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        $idsFromNumeric = [];
+        if (!empty($numericValues)) {
+            $idsFromNumeric = User::whereIn('id', $numericValues)
+                ->orderBy('uuid')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        return collect($idsFromUuids)
+            ->merge($idsFromNumeric)
+            ->unique()
+            ->values()
+            ->all();
     }
 }
