@@ -113,21 +113,38 @@ class ApiPayload
             );
         }
 
+        $amountCents = (int) (
+            $record->amount_cents
+            ?? ((float) ($record->amount ?? 0) * 100)
+        );
+        $balanceBeforeCents = (int) (
+            $record->balance_before_cents
+            ?? ((float) ($record->balance_before ?? 0) * 100)
+        );
+        $balanceAfterCents = (int) (
+            $record->balance_after_cents
+            ?? ((float) ($record->balance_after ?? 0) * 100)
+        );
+        $balanceChangeCents = (int) (
+            $record->balance_change_cents
+            ?? ((float) ($record->balance_change ?? 0) * 100)
+        );
+
         return [
             'id' => $record->uuid ?? (string) $record->id,
             'user_id' => optional($record->user)?->uuid ?? (string) $record->user_id,
             'user_name' => optional($record->user)?->name,
             'type' => $record->transaction_type,
             'description' => $record->description,
-            'amount_cents' => (int) ($record->amount_cents ?? 0),
+            'amount_cents' => $amountCents,
             'original_amount_cents' => (int) (
                 $originalAmountCents > 0
                 ? $originalAmountCents
-                : ($record->amount_cents ?? 0)
+                : $amountCents
             ),
-            'balance_before_cents' => (int) ($record->balance_before_cents ?? 0),
-            'balance_after_cents' => (int) ($record->balance_after_cents ?? 0),
-            'balance_change_cents' => (int) ($record->balance_change_cents ?? 0),
+            'balance_before_cents' => $balanceBeforeCents,
+            'balance_after_cents' => $balanceAfterCents,
+            'balance_change_cents' => $balanceChangeCents,
             'paid_by_user_name' => $expensePayer,
             'from_user_name' => $settlementFrom,
             'to_user_name' => $settlementTo,
