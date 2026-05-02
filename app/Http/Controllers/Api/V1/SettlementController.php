@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class SettlementController extends Controller
 {
@@ -69,15 +68,6 @@ class SettlementController extends Controller
             ], 400);
         }
 
-        // Validate that payment doesn't exceed outstanding debt
-        $maxPayable = $this->balanceService->maxPayable($group, $fromUser->uuid, $toUser->uuid);
-
-        if ($validated['amount_cents'] > $maxPayable) {
-            throw ValidationException::withMessages([
-                'amount_cents' => ["Payment amount exceeds outstanding debt of {$maxPayable} cents"],
-            ]);
-        }
-
         // Create settlement
         $proofPath = $request->file('proof_photo')->store('settlement-proofs', 'public');
 
@@ -116,28 +106,6 @@ class SettlementController extends Controller
 
         return response()->json([
             'settlement' => ApiPayload::settlement($settlement->load(['fromUser', 'toUser'])),
-        ]);
-    }
-
-    /**
-     * Get maximum payable amount between two users.
-     */
-    public function maxPayable(Request $request, Group $group)
-    {
-        $validated = $request->validate([
-            'from_user_id' => 'required|string|exists:users,uuid',
-            'to_user_id' => 'required|string|exists:users,uuid',
-        ]);
-
-        $fromUser = User::where('uuid', $validated['from_user_id'])->firstOrFail();
-        $toUser = User::where('uuid', $validated['to_user_id'])->firstOrFail();
-
-        $maxAmount = $this->balanceService->maxPayable($group, $fromUser->uuid, $toUser->uuid);
-
-        return response()->json([
-            'from_user_id' => $fromUser->uuid,
-            'to_user_id' => $toUser->uuid,
-            'max_payable_cents' => $maxAmount,
         ]);
     }
 

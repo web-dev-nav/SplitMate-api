@@ -89,22 +89,6 @@ class BalanceService
     }
 
     /**
-     * Get maximum payable amount between two users in a group (prevents overpayment).
-     */
-    public function maxPayable(Group $group, string $fromUserId, string $toUserId): int
-    {
-        $snapshot = $this->calculateSnapshot($group);
-
-        foreach ($snapshot['summaries'] as $summary) {
-            if ($summary['user_id'] === $fromUserId) {
-                return $summary['owes'][$toUserId] ?? 0;
-            }
-        }
-
-        return 0;
-    }
-
-    /**
      * Create statement records after an expense or settlement is added.
      * Called within a transaction by the controllers.
      */

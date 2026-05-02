@@ -64,7 +64,6 @@ Route::prefix('v1')->group(function () {
             // Settlements
             Route::get('/groups/{group}/settlements', [SettlementController::class, 'index']);
             Route::post('/groups/{group}/settlements', [SettlementController::class, 'store']);
-            Route::get('/groups/{group}/settlements/max-payable', [SettlementController::class, 'maxPayable']);
             Route::get('/groups/{group}/settlements/{settlement}', [SettlementController::class, 'show']);
             Route::delete('/groups/{group}/settlements/{settlement}', [SettlementController::class, 'destroy']);
 
