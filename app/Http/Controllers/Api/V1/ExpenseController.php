@@ -7,6 +7,7 @@ use App\Mail\ExpenseCreatedMail;
 use App\Models\Expense;
 use App\Models\Group;
 use App\Models\StatementRecord;
+use App\Models\User;
 use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
@@ -124,24 +125,7 @@ class ExpenseController extends Controller
         $expense->load('paidByUser');
 
         // Send email notifications to active group members (excluding the payer)
-        if ($group->email_notifications) {
-            $paidByName = optional($expense->paidByUser)->name ?? 'Someone';
-            $activeMembers = $group->members()
-                ->wherePivot('is_active', true)
-                ->where('users.id', '!=', $paidByUser->id)
-                ->whereNotNull('users.email')
-                ->get();
-
-            foreach ($activeMembers as $member) {
-                try {
-                    Mail::to($member->email)->send(
-                        new ExpenseCreatedMail($expense, $group, $member, $paidByName)
-                    );
-                } catch (\Throwable) {
-                    // Never fail the request due to email errors
-                }
-            }
-        }
+        $this->sendExpenseNotifications($group, $expense, $paidByUser);
 
         return response()->json([
             'expense' => ApiPayload::expense($expense),
@@ -163,6 +147,90 @@ class ExpenseController extends Controller
     }
 
     /**
+     * Update an expense record (owner only).
+     */
+    public function update(Request $request, Group $group, Expense $expense)
+    {
+        if ($expense->group_id !== $group->id) {
+            return response()->json(['message' => 'Expense not found in this group'], 404);
+        }
+
+        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Only the member who added this expense can edit it.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'amount_cents' => 'required|integer|min:1',
+            'paid_by_user_id' => 'required|string|exists:users,uuid',
+            'expense_date' => 'required|date',
+            'category' => 'required|string|max:50',
+            'participant_ids' => 'required|array|min:2',
+            'participant_ids.*' => 'string|exists:users,uuid',
+        ]);
+
+        if ($validated['paid_by_user_id'] !== (string) $request->user()->uuid) {
+            return response()->json([
+                'message' => 'You can only edit expenses you paid from your own account.',
+            ], 422);
+        }
+
+        $activeMemberUuids = $group->members()
+            ->wherePivot('is_active', true)
+            ->pluck('uuid')
+            ->toArray();
+
+        $category = strtolower(trim($validated['category']));
+        $allowedCategories = $group->expense_categories ?? Group::defaultExpenseCategories();
+        if (!in_array($category, $allowedCategories, true)) {
+            return response()->json([
+                'message' => 'The selected category is invalid for this group.',
+                'errors' => [
+                    'category' => ['The selected category is invalid for this group.'],
+                ],
+            ], 422);
+        }
+
+        $participantIds = array_values(array_unique($validated['participant_ids']));
+        $invalidParticipants = array_values(array_diff($participantIds, $activeMemberUuids));
+        if (!empty($invalidParticipants)) {
+            return response()->json([
+                'message' => 'All participants must be active members of this group.',
+                'errors' => [
+                    'participant_ids' => ['All participants must be active members of this group.'],
+                ],
+            ], 422);
+        }
+
+        $updated = DB::transaction(function () use ($expense, $group, $validated, $category, $participantIds, $activeMemberUuids) {
+            StatementRecord::where('expense_id', $expense->id)->delete();
+
+            $expense->update([
+                'title' => $validated['title'],
+                'description' => $validated['title'],
+                'amount_cents' => $validated['amount_cents'],
+                'amount' => round($validated['amount_cents'] / 100, 2),
+                'expense_date' => $validated['expense_date'],
+                'category' => $category,
+                'participant_ids' => $participantIds,
+                'user_count_at_time' => count($activeMemberUuids),
+            ]);
+
+            $this->balanceService->createStatementRecords($group, expense: $expense->fresh());
+
+            return $expense->fresh();
+        });
+
+        $updated->load('paidByUser');
+
+        return response()->json([
+            'expense' => ApiPayload::expense($updated),
+        ]);
+    }
+
+    /**
      * Update participants for an expense.
      */
     public function updateParticipants(Request $request, Group $group, Expense $expense)
@@ -171,14 +239,43 @@ class ExpenseController extends Controller
             return response()->json(['message' => 'Expense not found in this group'], 404);
         }
 
+        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Only the member who added this expense can edit it.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'participant_ids' => 'required|array|min:2',
             'participant_ids.*' => 'string|exists:users,uuid',
         ]);
 
-        $expense->update([
-            'participant_ids' => $validated['participant_ids'],
-        ]);
+        $activeMemberUuids = $group->members()
+            ->wherePivot('is_active', true)
+            ->pluck('uuid')
+            ->toArray();
+        $participantIds = array_values(array_unique($validated['participant_ids']));
+        $invalidParticipants = array_values(array_diff($participantIds, $activeMemberUuids));
+        if (!empty($invalidParticipants)) {
+            return response()->json([
+                'message' => 'All participants must be active members of this group.',
+                'errors' => [
+                    'participant_ids' => ['All participants must be active members of this group.'],
+                ],
+            ], 422);
+        }
+
+        $expense = DB::transaction(function () use ($expense, $group, $participantIds) {
+            StatementRecord::where('expense_id', $expense->id)->delete();
+
+            $expense->update([
+                'participant_ids' => $participantIds,
+            ]);
+
+            $this->balanceService->createStatementRecords($group, expense: $expense->fresh());
+
+            return $expense->fresh();
+        });
 
         return response()->json([
             'expense' => ApiPayload::expense($expense->load('paidByUser')),
@@ -192,6 +289,12 @@ class ExpenseController extends Controller
     {
         if ($expense->group_id !== $group->id) {
             return response()->json(['message' => 'Expense not found in this group'], 404);
+        }
+
+        if ((int) $expense->paid_by_user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Only the member who added this expense can modify or delete it.',
+            ], 403);
         }
 
         $validated = $request->validate([
@@ -269,5 +372,95 @@ class ExpenseController extends Controller
         return response()->json([
             'message' => 'Expense deleted successfully.',
         ]);
+    }
+
+    private function sendExpenseNotifications(Group $group, Expense $expense, User $paidByUser): void
+    {
+        if (!$group->email_notifications) {
+            return;
+        }
+
+        $paidByName = optional($expense->paidByUser)->name ?? 'Someone';
+        $snapshot = $this->balanceService->calculateSnapshot($group);
+        $activeMembers = $group->members()
+            ->wherePivot('is_active', true)
+            ->where('users.id', '!=', $paidByUser->id)
+            ->whereNotNull('users.email')
+            ->get();
+
+        foreach ($activeMembers as $member) {
+            try {
+                Mail::to($member->email)->send(
+                    new ExpenseCreatedMail(
+                        $expense,
+                        $group,
+                        $member,
+                        $paidByName,
+                        $this->shareForRecipient($expense, $member),
+                        $this->snapshotForRecipient($snapshot['summaries'] ?? [], $member)
+                    )
+                );
+            } catch (\Throwable) {
+                // Never fail the request due to email errors
+            }
+        }
+    }
+
+    private function shareForRecipient(Expense $expense, User $recipient): int
+    {
+        $participants = collect($expense->participant_ids ?? [])
+            ->filter(fn ($value) => $value !== null && $value !== '')
+            ->map(fn ($value) => (string) $value)
+            ->unique()
+            ->sort()
+            ->values();
+
+        if ($participants->isEmpty() || !$participants->contains((string) $recipient->uuid)) {
+            return 0;
+        }
+
+        $count = $participants->count();
+        $baseShare = intdiv((int) $expense->amount_cents, $count);
+        $remainder = (int) $expense->amount_cents % $count;
+        $index = $participants->search((string) $recipient->uuid);
+
+        return $baseShare + ($index < $remainder ? 1 : 0);
+    }
+
+    private function snapshotForRecipient(array $summaries, User $recipient): array
+    {
+        $summary = $summaries[$recipient->uuid] ?? [
+            'user_name' => $recipient->name,
+            'owes' => [],
+            'owed_by' => [],
+            'net_balance_cents' => 0,
+        ];
+
+        $nameByUuid = collect($summaries)->mapWithKeys(fn ($item, $uuid) => [$uuid => $item['user_name'] ?? 'Unknown'])->all();
+        $owesLines = [];
+        foreach (($summary['owes'] ?? []) as $otherUuid => $amount) {
+            $owesLines[] = [
+                'name' => $nameByUuid[$otherUuid] ?? 'Unknown',
+                'amount_cents' => (int) $amount,
+            ];
+        }
+
+        $owedByLines = [];
+        foreach (($summary['owed_by'] ?? []) as $otherUuid => $amount) {
+            $owedByLines[] = [
+                'name' => $nameByUuid[$otherUuid] ?? 'Unknown',
+                'amount_cents' => (int) $amount,
+            ];
+        }
+
+        usort($owesLines, fn ($a, $b) => $b['amount_cents'] <=> $a['amount_cents']);
+        usort($owedByLines, fn ($a, $b) => $b['amount_cents'] <=> $a['amount_cents']);
+
+        return [
+            'user_name' => $summary['user_name'] ?? $recipient->name,
+            'net_balance_cents' => (int) ($summary['net_balance_cents'] ?? 0),
+            'owes_lines' => $owesLines,
+            'owed_by_lines' => $owedByLines,
+        ];
     }
 }

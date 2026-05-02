@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Mail\SettlementCreatedMail;
 use App\Models\Group;
 use App\Models\Settlement;
 use App\Models\StatementRecord;
@@ -11,6 +12,7 @@ use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -89,6 +91,8 @@ class SettlementController extends Controller
             return $settlement;
         });
         $settlement->load(['fromUser', 'toUser']);
+
+        $this->sendSettlementNotifications($group, $settlement, $fromUser);
 
         return response()->json([
             'settlement' => ApiPayload::settlement($settlement),
@@ -209,5 +213,71 @@ class SettlementController extends Controller
         return response()->json([
             'message' => 'Settlement deleted successfully.',
         ]);
+    }
+
+    private function sendSettlementNotifications(Group $group, Settlement $settlement, User $actor): void
+    {
+        if (!$group->email_notifications) {
+            return;
+        }
+
+        $snapshot = $this->balanceService->calculateSnapshot($group);
+        $activeMembers = $group->members()
+            ->wherePivot('is_active', true)
+            ->where('users.id', '!=', $actor->id)
+            ->whereNotNull('users.email')
+            ->get();
+
+        foreach ($activeMembers as $member) {
+            try {
+                Mail::to($member->email)->send(
+                    new SettlementCreatedMail(
+                        $settlement,
+                        $group,
+                        $member,
+                        $this->snapshotForRecipient($snapshot['summaries'] ?? [], $member)
+                    )
+                );
+            } catch (\Throwable) {
+                // Never fail the request due to email errors.
+            }
+        }
+    }
+
+    private function snapshotForRecipient(array $summaries, User $recipient): array
+    {
+        $summary = $summaries[$recipient->uuid] ?? [
+            'user_name' => $recipient->name,
+            'owes' => [],
+            'owed_by' => [],
+            'net_balance_cents' => 0,
+        ];
+
+        $nameByUuid = collect($summaries)->mapWithKeys(fn ($item, $uuid) => [$uuid => $item['user_name'] ?? 'Unknown'])->all();
+        $owesLines = [];
+        foreach (($summary['owes'] ?? []) as $otherUuid => $amount) {
+            $owesLines[] = [
+                'name' => $nameByUuid[$otherUuid] ?? 'Unknown',
+                'amount_cents' => (int) $amount,
+            ];
+        }
+
+        $owedByLines = [];
+        foreach (($summary['owed_by'] ?? []) as $otherUuid => $amount) {
+            $owedByLines[] = [
+                'name' => $nameByUuid[$otherUuid] ?? 'Unknown',
+                'amount_cents' => (int) $amount,
+            ];
+        }
+
+        usort($owesLines, fn ($a, $b) => $b['amount_cents'] <=> $a['amount_cents']);
+        usort($owedByLines, fn ($a, $b) => $b['amount_cents'] <=> $a['amount_cents']);
+
+        return [
+            'user_name' => $summary['user_name'] ?? $recipient->name,
+            'net_balance_cents' => (int) ($summary['net_balance_cents'] ?? 0),
+            'owes_lines' => $owesLines,
+            'owed_by_lines' => $owedByLines,
+        ];
     }
 }

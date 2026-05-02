@@ -3,34 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Expense in {{ $group->name }}</title>
+    <title>New Settlement in {{ $group->name }}</title>
 </head>
 <body style="margin:0;padding:0;background:#f3f6fb;font-family:Arial,sans-serif;color:#132238;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:24px 12px;">
         <tr>
             <td align="center">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e6ebf4;">
-                    <!-- Header -->
                     <tr>
                         <td style="padding:28px;background:linear-gradient(135deg,#1b6fff,#2ec4b6);color:#ffffff;">
                             <div style="font-size:12px;letter-spacing:1px;text-transform:uppercase;font-weight:700;opacity:0.9;">SplitMate</div>
-                            <h1 style="margin:10px 0 6px;font-size:26px;line-height:1.2;">New Expense Added</h1>
+                            <h1 style="margin:10px 0 6px;font-size:26px;line-height:1.2;">New Settlement Recorded</h1>
                             <p style="margin:0;font-size:14px;opacity:0.95;">{{ $group->name }}</p>
                         </td>
                     </tr>
 
-                    <!-- Body -->
                     <tr>
                         <td style="padding:28px;">
                             <p style="margin:0 0 12px;font-size:16px;line-height:1.5;">
                                 Hi {{ $recipient->name }},
                             </p>
                             <p style="margin:0 0 20px;font-size:15px;line-height:1.6;">
-                                <strong>{{ $paidByName }}</strong> added a new expense to
-                                <strong>{{ $group->name }}</strong>:
+                                <strong>{{ $settlement->fromUser?->name ?? 'Someone' }}</strong> recorded a settlement payment to
+                                <strong>{{ $settlement->toUser?->name ?? 'someone' }}</strong>.
                             </p>
 
-                            <!-- Expense box -->
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
                                    style="background:#f3f6fb;border-radius:12px;margin-bottom:24px;">
                                 <tr>
@@ -39,10 +36,10 @@
                                             <tr>
                                                 <td>
                                                     <div style="font-size:13px;color:#687991;text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:4px;">
-                                                        Expense
+                                                        Payment
                                                     </div>
                                                     <div style="font-size:20px;font-weight:700;color:#132238;">
-                                                        {{ $expense->title }}
+                                                        {{ $settlement->fromUser?->name ?? 'Someone' }} paid {{ $settlement->toUser?->name ?? 'someone' }}
                                                     </div>
                                                 </td>
                                                 <td align="right">
@@ -64,23 +61,7 @@
                                                     Date
                                                 </td>
                                                 <td align="right" style="font-size:13px;font-weight:600;color:#132238;">
-                                                    {{ optional($expense->expense_date)->format('M d, Y') }}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="font-size:13px;color:#687991;padding-top:8px;">
-                                                    Split among
-                                                </td>
-                                                <td align="right" style="font-size:13px;font-weight:600;color:#132238;padding-top:8px;">
-                                                    {{ $participantCount }} {{ $participantCount === 1 ? 'person' : 'people' }}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="font-size:13px;color:#687991;padding-top:8px;">
-                                                    Your share
-                                                </td>
-                                                <td align="right" style="font-size:13px;font-weight:700;color:#2ec4b6;padding-top:8px;">
-                                                    {{ $group->currency_code }} {{ number_format($recipientShareCents / 100, 2) }}
+                                                    {{ optional($settlement->settlement_date)->format('M d, Y') }}
                                                 </td>
                                             </tr>
                                         </table>
@@ -138,12 +119,11 @@
                             </table>
 
                             <p style="margin:0 0 8px;font-size:13px;color:#687991;line-height:1.5;">
-                                Open the SplitMate app to see the full breakdown and your current balance.
+                                Open the SplitMate app to review the record and updated balances.
                             </p>
                         </td>
                     </tr>
 
-                    <!-- Footer -->
                     <tr>
                         <td style="padding:16px 28px;background:#f3f6fb;border-top:1px solid #e6ebf4;">
                             <p style="margin:0;font-size:11px;color:#aab4c4;line-height:1.5;">

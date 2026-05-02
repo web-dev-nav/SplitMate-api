@@ -56,6 +56,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/groups/{group}/expenses', [ExpenseController::class, 'index']);
             Route::post('/groups/{group}/expenses', [ExpenseController::class, 'store']);
             Route::get('/groups/{group}/expenses/{expense}', [ExpenseController::class, 'show']);
+            Route::patch('/groups/{group}/expenses/{expense}', [ExpenseController::class, 'update']);
             Route::delete('/groups/{group}/expenses/{expense}', [ExpenseController::class, 'destroy']);
             Route::patch('/groups/{group}/expenses/{expense}/participants', [ExpenseController::class, 'updateParticipants']);
             Route::post('/groups/{group}/expenses/{expense}/receipt', [ExpenseController::class, 'uploadReceipt']);

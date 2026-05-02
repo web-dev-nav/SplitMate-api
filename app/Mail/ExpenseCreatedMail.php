@@ -20,6 +20,8 @@ class ExpenseCreatedMail extends Mailable
         public readonly Group $group,
         public readonly User $recipient,
         public readonly string $paidByName,
+        public readonly int $recipientShareCents,
+        public readonly array $recipientSnapshot,
     ) {}
 
     public function envelope(): Envelope
@@ -38,10 +40,9 @@ class ExpenseCreatedMail extends Mailable
                 'group'        => $this->group,
                 'recipient'    => $this->recipient,
                 'paidByName'   => $this->paidByName,
+                'recipientShareCents' => $this->recipientShareCents,
+                'recipientSnapshot' => $this->recipientSnapshot,
                 'amountFormatted' => number_format($this->expense->amount_cents / 100, 2),
-                'perPersonFormatted' => count($this->expense->participant_ids ?? []) > 0
-                    ? number_format($this->expense->amount_cents / 100 / count($this->expense->participant_ids), 2)
-                    : number_format($this->expense->amount_cents / 100, 2),
                 'participantCount' => count($this->expense->participant_ids ?? []),
             ],
         );
