@@ -139,8 +139,13 @@ class BalanceService
                 'settlement_id' => $settlement?->id,
                 'transaction_type' => $type,
                 'description' => $description,
+                // Keep legacy decimal columns populated for old schemas.
+                'amount' => abs($impact) / 100,
                 'amount_cents' => abs($impact),
                 'reference_number' => StatementRecord::generateReferenceNumber(strtoupper(substr($type, 0, 3))),
+                'balance_before' => $balanceBefore / 100,
+                'balance_after' => $balanceAfter / 100,
+                'balance_change' => $balanceChange / 100,
                 'balance_before_cents' => $balanceBefore,
                 'balance_after_cents' => $balanceAfter,
                 'balance_change_cents' => $balanceChange,

@@ -139,6 +139,22 @@ class StatementRecord extends Model
             if (!$model->uuid) {
                 $model->uuid = Str::uuid();
             }
+
+            if (($model->amount === null || $model->amount === '') && $model->amount_cents !== null) {
+                $model->amount = round(((int) $model->amount_cents) / 100, 2);
+            }
+
+            if (($model->balance_before === null || $model->balance_before === '') && $model->balance_before_cents !== null) {
+                $model->balance_before = round(((int) $model->balance_before_cents) / 100, 2);
+            }
+
+            if (($model->balance_after === null || $model->balance_after === '') && $model->balance_after_cents !== null) {
+                $model->balance_after = round(((int) $model->balance_after_cents) / 100, 2);
+            }
+
+            if (($model->balance_change === null || $model->balance_change === '') && $model->balance_change_cents !== null) {
+                $model->balance_change = round(((int) $model->balance_change_cents) / 100, 2);
+            }
         });
     }
 }
