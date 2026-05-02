@@ -110,6 +110,78 @@ class SettlementController extends Controller
     }
 
     /**
+     * Update settlement record (payer only).
+     */
+    public function update(Request $request, Group $group, Settlement $settlement)
+    {
+        if ($settlement->group_id !== $group->id) {
+            return response()->json(['message' => 'Settlement not found in this group'], 404);
+        }
+
+        if ((int) $settlement->from_user_id !== (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'Only the member who created this settlement can edit it.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'from_user_id' => 'required|string|exists:users,uuid',
+            'to_user_id' => 'required|string|exists:users,uuid|different:from_user_id',
+            'amount_cents' => 'required|integer|min:1',
+            'settlement_date' => 'required|date',
+            'proof_photo' => 'nullable|image|max:15360',
+        ]);
+
+        if ($validated['from_user_id'] !== (string) $request->user()->uuid) {
+            return response()->json([
+                'message' => 'You can only edit settlements you paid from your own account.',
+            ], 422);
+        }
+
+        $fromUser = User::where('uuid', $validated['from_user_id'])->firstOrFail();
+        $toUser = User::where('uuid', $validated['to_user_id'])->firstOrFail();
+
+        $fromMember = $group->members()->where('user_id', $fromUser->id)->wherePivot('is_active', true)->first();
+        $toMember = $group->members()->where('user_id', $toUser->id)->wherePivot('is_active', true)->first();
+        if (!$fromMember || !$toMember) {
+            return response()->json([
+                'message' => 'Both users must be active members of the group',
+            ], 400);
+        }
+
+        $updated = DB::transaction(function () use ($request, $validated, $group, $settlement, $fromUser, $toUser) {
+            StatementRecord::where('settlement_id', $settlement->id)->delete();
+
+            $proofPath = $settlement->proof_photo;
+            if ($request->hasFile('proof_photo')) {
+                if (!empty($proofPath)) {
+                    Storage::disk('public')->delete((string) $proofPath);
+                }
+                $proofPath = $request->file('proof_photo')->store('settlement-proofs', 'public');
+            }
+
+            $settlement->update([
+                'from_user_id' => $fromUser->id,
+                'to_user_id' => $toUser->id,
+                'amount_cents' => $validated['amount_cents'],
+                'amount' => $validated['amount_cents'] / 100,
+                'settlement_date' => $validated['settlement_date'],
+                'proof_photo' => $proofPath,
+            ]);
+
+            $this->balanceService->createStatementRecords($group, settlement: $settlement->fresh());
+
+            return $settlement->fresh();
+        });
+
+        $updated->load(['fromUser', 'toUser']);
+
+        return response()->json([
+            'settlement' => ApiPayload::settlement($updated),
+        ]);
+    }
+
+    /**
      * Delete settlement record (payer only).
      */
     public function destroy(Request $request, Group $group, Settlement $settlement)

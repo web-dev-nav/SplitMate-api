@@ -65,6 +65,7 @@ Route::prefix('v1')->group(function () {
             Route::get('/groups/{group}/settlements', [SettlementController::class, 'index']);
             Route::post('/groups/{group}/settlements', [SettlementController::class, 'store']);
             Route::get('/groups/{group}/settlements/{settlement}', [SettlementController::class, 'show']);
+            Route::post('/groups/{group}/settlements/{settlement}/update', [SettlementController::class, 'update']);
             Route::delete('/groups/{group}/settlements/{settlement}', [SettlementController::class, 'destroy']);
 
             // Balance & Statements
