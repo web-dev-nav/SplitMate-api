@@ -109,8 +109,8 @@ class BalanceService
 
         // For each active user, create a statement record
         foreach ($activeMembers as $user) {
-            $balanceBefore = $this->calculateBalanceForUserBefore($group, $user->id, $targetDate);
-            $balanceAfter = $this->calculateBalanceForUserAfter($group, $user->id, $targetDate);
+            $balanceBefore = $this->calculateBalanceForUserBefore($group, $user->id, $targetDate, $expense?->id, $settlement?->id);
+            $balanceAfter = $this->calculateBalanceForUserAfter($group, $user->id, $targetDate, $expense?->id, $settlement?->id);
             $balanceChange = $balanceAfter - $balanceBefore;
 
             // Determine impact and description
@@ -364,21 +364,111 @@ class BalanceService
     /**
      * Helper methods for statement record creation (simplified - can be expanded).
      */
-    private function calculateBalanceForUserBefore(Group $group, int $userId, $beforeDate): int
+    private function calculateBalanceForUserBefore(
+        Group $group,
+        int $userId,
+        $beforeDate,
+        ?int $currentExpenseId = null,
+        ?int $currentSettlementId = null
+    ): int
     {
-        // Calculate balance before the given date
-        return 0; // Simplified - would calculate from statements before this date
+        return $this->calculateNetBalanceFromLedger(
+            $group,
+            $userId,
+            $beforeDate,
+            $currentExpenseId,
+            $currentSettlementId,
+            true
+        );
     }
 
-    private function calculateBalanceForUserAfter(Group $group, int $userId, $afterDate): int
+    private function calculateBalanceForUserAfter(
+        Group $group,
+        int $userId,
+        $afterDate,
+        ?int $currentExpenseId = null,
+        ?int $currentSettlementId = null
+    ): int
     {
-        // Calculate balance after the given date
-        $snapshot = $this->calculateSnapshot($group);
-        foreach ($snapshot['summaries'] as $summary) {
-            // This is also simplified - would use actual UUID
-            // For now return net balance
+        return $this->calculateNetBalanceFromLedger(
+            $group,
+            $userId,
+            $afterDate,
+            $currentExpenseId,
+            $currentSettlementId,
+            false
+        );
+    }
+
+    /**
+     * Rebuild net balance from ledger up to target date.
+     * If $excludeCurrentTransaction is true, excludes the current expense/settlement from the calculation
+     * to produce a true "before transaction" balance.
+     */
+    private function calculateNetBalanceFromLedger(
+        Group $group,
+        int $targetUserId,
+        $targetDate,
+        ?int $currentExpenseId,
+        ?int $currentSettlementId,
+        bool $excludeCurrentTransaction
+    ): int {
+        $activeMembers = $group->members()
+            ->wherePivot('is_active', true)
+            ->orderBy('uuid')
+            ->get();
+
+        if ($activeMembers->isEmpty()) {
+            return 0;
         }
-        return 0;
+
+        $matrix = $this->initializeMatrix($activeMembers);
+
+        $expenses = $group->expenses()
+            ->where('created_at', '<=', $targetDate)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+        $settlements = $group->settlements()
+            ->where('created_at', '<=', $targetDate)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($expenses as $expense) {
+            if (
+                $excludeCurrentTransaction &&
+                $currentExpenseId !== null &&
+                (int) $expense->id === (int) $currentExpenseId
+            ) {
+                continue;
+            }
+            $this->processExpense($expense, $matrix, $activeMembers);
+        }
+
+        foreach ($settlements as $settlement) {
+            if (
+                $excludeCurrentTransaction &&
+                $currentSettlementId !== null &&
+                (int) $settlement->id === (int) $currentSettlementId
+            ) {
+                continue;
+            }
+            $this->processSettlement($settlement, $matrix);
+        }
+
+        $this->consolidateDebts($matrix, $activeMembers);
+
+        $net = 0;
+        foreach ($activeMembers as $other) {
+            if ((int) $other->id === $targetUserId) {
+                continue;
+            }
+            $net -= (int) ($matrix[$targetUserId][$other->id] ?? 0);
+            $net += (int) ($matrix[$other->id][$targetUserId] ?? 0);
+        }
+
+        return $net;
     }
 
     private function calculateExpenseImpact(Expense $expense, int $userId): int
