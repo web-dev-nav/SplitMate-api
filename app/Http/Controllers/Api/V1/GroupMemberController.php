@@ -9,6 +9,45 @@ use Illuminate\Http\Request;
 
 class GroupMemberController extends Controller
 {
+    public function updateNotificationPreferences(Request $request, Group $group)
+    {
+        if (!$request->user()->groups->contains($group)) {
+            return response()->json([
+                'message' => 'Unauthorized',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'expense_email_notifications' => 'sometimes|boolean',
+            'settlement_email_notifications' => 'sometimes|boolean',
+        ]);
+
+        $updates = [];
+        if (array_key_exists('expense_email_notifications', $validated)) {
+            $updates['expense_email_notifications'] = (bool) $validated['expense_email_notifications'];
+        }
+        if (array_key_exists('settlement_email_notifications', $validated)) {
+            $updates['settlement_email_notifications'] = (bool) $validated['settlement_email_notifications'];
+        }
+
+        if (empty($updates)) {
+            return response()->json([
+                'message' => 'No notification preferences were provided.',
+            ], 422);
+        }
+
+        $group->members()->updateExistingPivot($request->user()->id, $updates);
+
+        $member = $group->members()
+            ->where('users.id', $request->user()->id)
+            ->firstOrFail();
+
+        return response()->json([
+            'member' => \App\Support\ApiPayload::groupMember($member),
+            'message' => 'Notification preferences updated successfully.',
+        ]);
+    }
+
     /**
      * Remove (deactivate) a member from a group (creator/admin only).
      */

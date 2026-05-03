@@ -406,6 +406,7 @@ class ExpenseController extends Controller
         $snapshot = $this->balanceService->calculateSnapshot($group);
         $activeMembers = $group->members()
             ->wherePivot('is_active', true)
+            ->wherePivot('expense_email_notifications', true)
             ->whereNotNull('users.email')
             ->get();
 

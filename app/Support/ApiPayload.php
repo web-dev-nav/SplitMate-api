@@ -55,6 +55,8 @@ class ApiPayload
             'email' => $user->email,
             'is_active' => (bool) ($user->pivot->is_active ?? $user->is_active),
             'role' => $user->pivot->role ?? null,
+            'expense_email_notifications' => (bool) ($user->pivot->expense_email_notifications ?? true),
+            'settlement_email_notifications' => (bool) ($user->pivot->settlement_email_notifications ?? true),
             'joined_at' => optional($user->pivot->joined_at ?? null)?->toIso8601String(),
         ];
     }

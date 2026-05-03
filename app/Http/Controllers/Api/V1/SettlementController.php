@@ -237,6 +237,7 @@ class SettlementController extends Controller
         $snapshot = $this->balanceService->calculateSnapshot($group);
         $activeMembers = $group->members()
             ->wherePivot('is_active', true)
+            ->wherePivot('settlement_email_notifications', true)
             ->where('users.id', '!=', $actor->id)
             ->whereNotNull('users.email')
             ->get();

@@ -52,6 +52,60 @@ class ExpenseNotificationTest extends TestCase
         Mail::assertSent(ExpenseCreatedMail::class, fn (ExpenseCreatedMail $mail) => $mail->hasTo($otherMember->email));
     }
 
+    public function test_expense_email_respects_member_notification_preferences(): void
+    {
+        Mail::fake();
+
+        $owner = $this->makeUser('owner2@example.com');
+        $member = $this->makeUser('member2@example.com');
+        $otherMember = $this->makeUser('other2@example.com');
+
+        $group = $this->makeGroup($owner, emailNotifications: true);
+        $group->members()->attach($owner->id, [
+            'role' => 'admin',
+            'is_active' => true,
+            'expense_email_notifications' => true,
+            'settlement_email_notifications' => true,
+            'joined_at' => now(),
+        ]);
+        $group->members()->attach($member->id, [
+            'role' => 'member',
+            'is_active' => true,
+            'expense_email_notifications' => false,
+            'settlement_email_notifications' => true,
+            'joined_at' => now(),
+        ]);
+        $group->members()->attach($otherMember->id, [
+            'role' => 'member',
+            'is_active' => true,
+            'expense_email_notifications' => true,
+            'settlement_email_notifications' => true,
+            'joined_at' => now(),
+        ]);
+
+        Sanctum::actingAs($member);
+
+        $response = $this->postJson("/api/v1/groups/{$group->id}/expenses", [
+            'title' => 'Groceries',
+            'amount_cents' => 3000,
+            'paid_by_user_id' => $member->uuid,
+            'expense_date' => now()->toDateString(),
+            'category' => 'food',
+            'participant_ids' => [
+                $owner->uuid,
+                $member->uuid,
+                $otherMember->uuid,
+            ],
+        ]);
+
+        $response->assertCreated();
+
+        Mail::assertSent(ExpenseCreatedMail::class, 2);
+        Mail::assertSent(ExpenseCreatedMail::class, fn (ExpenseCreatedMail $mail) => $mail->hasTo($owner->email));
+        Mail::assertNotSent(ExpenseCreatedMail::class, fn (ExpenseCreatedMail $mail) => $mail->hasTo($member->email));
+        Mail::assertSent(ExpenseCreatedMail::class, fn (ExpenseCreatedMail $mail) => $mail->hasTo($otherMember->email));
+    }
+
     private function makeUser(string $email): User
     {
         return User::create([
