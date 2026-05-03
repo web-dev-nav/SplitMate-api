@@ -126,23 +126,24 @@
         </form>
     </div>
 
-    {{-- Current .env reference --}}
+    {{-- Current runtime mail config --}}
     <div class="panel">
-        <h2 style="margin:0 0 4px;">Current .env Reference</h2>
+        <h2 style="margin:0 0 4px;">Current Runtime Mail Config</h2>
         <p class="muted" style="margin:0 0 14px;font-size:14px;">
-            Values currently loaded from the environment file (before any DB overrides).
-            Edit the DB settings above to override these without touching the server.
+            These are live Laravel mail config values currently loaded by app.
+            `env()` may show `null` here when config cache is enabled, so this panel uses runtime `config()` instead.
         </p>
         <table class="table" style="font-size:13px;">
             <tbody>
                 @foreach([
                     'MAIL_MAILER'       => config('mail.default'),
-                    'MAIL_HOST'         => env('MAIL_HOST', '—'),
-                    'MAIL_PORT'         => env('MAIL_PORT', '—'),
-                    'MAIL_ENCRYPTION'   => env('MAIL_SCHEME', env('MAIL_ENCRYPTION', '—')),
-                    'MAIL_USERNAME'     => env('MAIL_USERNAME', '—'),
-                    'MAIL_FROM_ADDRESS' => env('MAIL_FROM_ADDRESS', '—'),
-                    'MAIL_FROM_NAME'    => env('MAIL_FROM_NAME', '—'),
+                    'MAIL_SCHEME'       => config('mail.mailers.smtp.scheme', '—'),
+                    'MAIL_HOST'         => config('mail.mailers.smtp.host', '—'),
+                    'MAIL_PORT'         => config('mail.mailers.smtp.port', '—'),
+                    'MAIL_ENCRYPTION'   => config('mail.mailers.smtp.encryption', '—'),
+                    'MAIL_USERNAME'     => config('mail.mailers.smtp.username', '—'),
+                    'MAIL_FROM_ADDRESS' => config('mail.from.address', '—'),
+                    'MAIL_FROM_NAME'    => config('mail.from.name', '—'),
                 ] as $key => $value)
                 <tr>
                     <td><code>{{ $key }}</code></td>
