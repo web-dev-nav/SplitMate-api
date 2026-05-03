@@ -42,6 +42,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
         Route::post('/settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');
         Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->name('settings.smtp.test');
+        Route::post('/settings/optimize-clear', [SettingsController::class, 'optimizeClear'])->name('settings.optimize-clear');
         Route::get('/logs', [SettingsController::class, 'logs'])->name('logs');
         Route::post('/logs/clear', [SettingsController::class, 'clearLogs'])->name('logs.clear');
     });

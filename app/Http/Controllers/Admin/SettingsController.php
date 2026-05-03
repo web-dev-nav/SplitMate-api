@@ -7,6 +7,7 @@ use App\Models\AdminSetting;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
@@ -124,6 +125,29 @@ class SettingsController extends Controller
             return redirect()->route('admin.settings')->with('status', "Test email sent to {$to}. Check your inbox.");
         } catch (\Throwable $e) {
             return redirect()->route('admin.settings')->with('error', 'SMTP test failed: ' . $e->getMessage());
+        }
+    }
+
+    public function optimizeClear(): RedirectResponse
+    {
+        try {
+            Artisan::call('optimize:clear');
+            AdminSetting::applySmtpSettingsToRuntime();
+
+            $output = trim(Artisan::output());
+            $message = 'Laravel optimize:clear executed successfully.';
+
+            if ($output !== '') {
+                $message .= ' Output: ' . preg_replace('/\s+/', ' ', $output);
+            }
+
+            return redirect()
+                ->route('admin.settings')
+                ->with('status', $message);
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('admin.settings')
+                ->with('error', 'Failed to run optimize:clear: ' . $e->getMessage());
         }
     }
 

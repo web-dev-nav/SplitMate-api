@@ -126,6 +126,19 @@
         </form>
     </div>
 
+    {{-- Backend cache refresh --}}
+    <div class="panel">
+        <h2 style="margin:0 0 4px;">Refresh Laravel Cache</h2>
+        <p class="muted" style="margin:0 0 16px;font-size:14px;">
+            Runs <code>php artisan optimize:clear</code> on API backend. This refreshes Laravel config, route, view and cache state.
+            It does not force-refresh iOS app, but iOS will use updated backend responses after this.
+        </p>
+        <form method="POST" action="{{ route('admin.settings.optimize-clear') }}" onsubmit="return confirm('Run optimize:clear on API backend?');">
+            @csrf
+            <button type="submit" class="button warn">Run optimize:clear</button>
+        </form>
+    </div>
+
     {{-- Current runtime mail config --}}
     <div class="panel">
         <h2 style="margin:0 0 4px;">Current Runtime Mail Config</h2>
