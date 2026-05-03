@@ -124,7 +124,7 @@ class ExpenseController extends Controller
         });
         $expense->load('paidByUser');
 
-        // Send email notifications to active group members (excluding the payer)
+        // Send email notifications to all active group members with email addresses.
         $this->sendExpenseNotifications($group, $expense, $paidByUser);
 
         return response()->json([
@@ -397,7 +397,6 @@ class ExpenseController extends Controller
         $snapshot = $this->balanceService->calculateSnapshot($group);
         $activeMembers = $group->members()
             ->wherePivot('is_active', true)
-            ->where('users.id', '!=', $paidByUser->id)
             ->whereNotNull('users.email')
             ->get();
 

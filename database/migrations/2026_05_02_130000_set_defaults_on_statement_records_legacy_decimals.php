@@ -12,6 +12,10 @@ return new class extends Migration
             return;
         }
 
+        if (DB::getDriverName() === 'sqlite') {
+            return;
+        }
+
         if (Schema::hasColumn('statement_records', 'amount')) {
             DB::statement('ALTER TABLE statement_records MODIFY amount DECIMAL(10,2) NOT NULL DEFAULT 0.00');
         }
@@ -29,6 +33,10 @@ return new class extends Migration
     public function down(): void
     {
         if (!Schema::hasTable('statement_records')) {
+            return;
+        }
+
+        if (DB::getDriverName() === 'sqlite') {
             return;
         }
 
