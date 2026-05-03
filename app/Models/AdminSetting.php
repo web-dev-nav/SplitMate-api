@@ -59,7 +59,16 @@ class AdminSetting extends Model
             return;
         }
 
+        $encryption = strtolower((string) ($smtp['mail_encryption'] ?? ''));
+        $scheme = match ($encryption) {
+            'ssl' => 'smtps',
+            'tls', 'starttls' => 'smtp',
+            default => null,
+        };
+
         Config::set('mail.default', $smtp['mail_mailer'] ?? 'smtp');
+        Config::set('mail.mailers.smtp.transport', 'smtp');
+        Config::set('mail.mailers.smtp.scheme', $scheme);
         Config::set('mail.mailers.smtp.host', $smtp['mail_host'] ?? '');
         Config::set('mail.mailers.smtp.port', (int) ($smtp['mail_port'] ?? 587));
         Config::set('mail.mailers.smtp.username', $smtp['mail_username'] ?? '');
@@ -67,5 +76,9 @@ class AdminSetting extends Model
         Config::set('mail.mailers.smtp.encryption', ($smtp['mail_encryption'] ?? '') ?: null);
         Config::set('mail.from.address', $smtp['mail_from_address'] ?? '');
         Config::set('mail.from.name', $smtp['mail_from_name'] ?? 'SplitMate');
+
+        if (app()->bound('mail.manager')) {
+            app('mail.manager')->forgetMailers();
+        }
     }
 }
