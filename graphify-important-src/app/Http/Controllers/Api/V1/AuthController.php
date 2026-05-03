@@ -1,0 +1,450 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Models\EmailVerificationCode;
+use App\Models\PasswordResetCode;
+use App\Models\User;
+use App\Support\ApiPayload;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+
+class AuthController extends Controller
+{
+    private const RESET_CODE_EXPIRY_MINUTES = 15;
+
+    /**
+     * Register a new user.
+     */
+    public function register(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::create([
+            'uuid' => Str::uuid(),
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'is_active' => true,
+        ]);
+
+        $token = $user->createToken('api_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => ApiPayload::user($user),
+        ], 201);
+    }
+
+    /**
+     * Login user and return token.
+     */
+    public function login(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
+            'password' => 'required|string',
+        ]);
+
+        $email = strtolower(trim($validated['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if ($user && !empty($user->google_id)) {
+            throw ValidationException::withMessages([
+                'email' => ['This email is associated with a Google account. Please sign in with Google.'],
+            ]);
+        }
+
+        if (!$user || !Hash::check($validated['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'email' => ['The provided credentials are invalid.'],
+            ]);
+        }
+
+        $token = $user->createToken('api_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => ApiPayload::user($user),
+        ]);
+    }
+
+    /**
+     * Login/register using Google ID token.
+     */
+    public function googleLogin(Request $request)
+    {
+        $validated = $request->validate([
+            'id_token' => 'required|string',
+        ]);
+
+        $googleUser = $this->verifyGoogleIdToken($validated['id_token']);
+
+        if (!$googleUser || empty($googleUser['sub']) || empty($googleUser['email'])) {
+            throw ValidationException::withMessages([
+                'id_token' => ['Invalid Google token.'],
+            ]);
+        }
+
+        $email = strtolower(trim((string) $googleUser['email']));
+        $googleId = (string) $googleUser['sub'];
+        $name = trim((string) ($googleUser['name'] ?? 'Google User'));
+        if ($name === '') {
+            $name = 'Google User';
+        }
+
+        $user = User::where('google_id', $googleId)->first();
+        if (!$user) {
+            $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+        }
+
+        if ($user && !empty($user->google_id) && $user->google_id !== $googleId) {
+            throw ValidationException::withMessages([
+                'email' => ['This email is already linked to a different Google account.'],
+            ]);
+        }
+
+        if ($user) {
+            $existingEmailOwner = User::whereRaw('LOWER(email) = ?', [$email])->first();
+            if ($existingEmailOwner && $existingEmailOwner->id !== $user->id) {
+                throw ValidationException::withMessages([
+                    'email' => ['Another account already uses this email address.'],
+                ]);
+            }
+        }
+
+        if (!$user) {
+            $user = User::create([
+                'uuid' => Str::uuid(),
+                'name' => $name,
+                'email' => $email,
+                'google_id' => $googleId,
+                'password' => Hash::make(Str::random(40)),
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]);
+        } else {
+            $user->forceFill([
+                'google_id' => $googleId,
+                'name' => $name,
+                'email' => $email,
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ])->save();
+        }
+
+        $token = $user->createToken('api_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => ApiPayload::user($user->fresh()),
+        ]);
+    }
+
+    /**
+     * Get authenticated user.
+     */
+    public function me(Request $request)
+    {
+        $user = $request->user();
+
+        return response()->json(ApiPayload::user($user));
+    }
+
+    /**
+     * Update authenticated user profile.
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'email' => [
+                'sometimes',
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+        ]);
+
+        $updates = [];
+
+        if (array_key_exists('name', $validated)) {
+            $updates['name'] = trim((string) $validated['name']);
+        }
+
+        if (array_key_exists('email', $validated)) {
+            $email = strtolower(trim((string) $validated['email']));
+            if ($email !== strtolower((string) $user->email)) {
+                $updates['email'] = $email;
+                $updates['email_verified_at'] = null;
+            }
+        }
+
+        if (!empty($updates)) {
+            $user->forceFill($updates)->save();
+        }
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
+            'user' => ApiPayload::user($user->fresh()),
+        ]);
+    }
+
+    /**
+     * Logout user (revoke token).
+     */
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Logged out successfully',
+        ]);
+    }
+
+    /**
+     * Send a one-time email verification code.
+     */
+    public function sendVerificationCode(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->email_verified_at) {
+            return response()->json([
+                'message' => 'Email is already verified.',
+            ]);
+        }
+
+        $code = (string) random_int(100000, 999999);
+
+        EmailVerificationCode::where('user_id', $user->id)
+            ->whereNull('used_at')
+            ->delete();
+
+        EmailVerificationCode::create([
+            'user_id' => $user->id,
+            'code' => $code,
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        try {
+            Mail::raw(
+                "Your SplitMate verification code is: {$code}. It expires in 15 minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)->subject('SplitMate Email Verification');
+                }
+            );
+        } catch (\Throwable $e) {
+            // Allow local/dev flows even when mail is not configured.
+        }
+
+        $response = [
+            'message' => 'Verification code sent.',
+        ];
+
+        if (app()->environment('local')) {
+            $response['debug_code'] = $code;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Verify current user's email using a one-time code.
+     */
+    public function verifyEmailCode(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|size:6',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->email_verified_at) {
+            return response()->json([
+                'message' => 'Email is already verified.',
+                'user' => ApiPayload::user($user),
+            ]);
+        }
+
+        $record = EmailVerificationCode::where('user_id', $user->id)
+            ->where('code', $validated['code'])
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
+
+        if (!$record) {
+            throw ValidationException::withMessages([
+                'code' => ['Invalid or expired verification code.'],
+            ]);
+        }
+
+        $record->update([
+            'used_at' => now(),
+        ]);
+
+        $user->forceFill([
+            'email_verified_at' => now(),
+        ])->save();
+
+        return response()->json([
+            'message' => 'Email verified successfully.',
+            'user' => ApiPayload::user($user->fresh()),
+        ]);
+    }
+
+    /**
+     * Send a one-time password reset code to the user's email.
+     */
+    public function sendPasswordResetCode(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
+        ]);
+
+        $normalizedEmail = strtolower(trim($validated['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'If the account exists, a password reset code has been sent.',
+            ]);
+        }
+
+        $code = (string) random_int(100000, 999999);
+
+        PasswordResetCode::where('user_id', $user->id)
+            ->whereNull('used_at')
+            ->delete();
+
+        PasswordResetCode::create([
+            'user_id' => $user->id,
+            'code' => $code,
+            'expires_at' => now()->addMinutes(self::RESET_CODE_EXPIRY_MINUTES),
+        ]);
+
+        try {
+            Mail::raw(
+                "Your SplitMate password reset code is: {$code}. It expires in ".self::RESET_CODE_EXPIRY_MINUTES." minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)->subject('SplitMate Password Reset');
+                }
+            );
+        } catch (\Throwable $e) {
+            // Allow local/dev flows even when mail is not configured.
+        }
+
+        $response = [
+            'message' => 'If the account exists, a password reset code has been sent.',
+        ];
+
+        if (app()->environment('local')) {
+            $response['debug_code'] = $code;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Reset password using one-time code.
+     */
+    public function resetPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
+            'code' => 'required|string|size:6',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $normalizedEmail = strtolower(trim($validated['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$normalizedEmail])->first();
+
+        if (!$user) {
+            throw ValidationException::withMessages([
+                'email' => ['Invalid email or reset code.'],
+            ]);
+        }
+
+        $record = PasswordResetCode::where('user_id', $user->id)
+            ->where('code', $validated['code'])
+            ->whereNull('used_at')
+            ->where('expires_at', '>', now())
+            ->latest('id')
+            ->first();
+
+        if (!$record) {
+            throw ValidationException::withMessages([
+                'code' => ['Invalid or expired reset code.'],
+            ]);
+        }
+
+        $record->update([
+            'used_at' => now(),
+        ]);
+
+        $user->forceFill([
+            'password' => Hash::make($validated['password']),
+        ])->save();
+
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Password reset successfully. Please sign in again.',
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function verifyGoogleIdToken(string $idToken): ?array
+    {
+        try {
+            $response = Http::timeout(10)
+                ->acceptJson()
+                ->get('https://oauth2.googleapis.com/tokeninfo', [
+                    'id_token' => $idToken,
+                ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (!$response->successful()) {
+            return null;
+        }
+
+        $payload = $response->json();
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $emailVerified = strtolower((string) ($payload['email_verified'] ?? 'false'));
+        if (!in_array($emailVerified, ['true', '1'], true)) {
+            return null;
+        }
+
+        $configuredClientId = trim((string) env('GOOGLE_CLIENT_ID', ''));
+        if ($configuredClientId !== '') {
+            $audience = (string) ($payload['aud'] ?? '');
+            if ($audience !== $configuredClientId) {
+                return null;
+            }
+        }
+
+        return $payload;
+    }
+}
