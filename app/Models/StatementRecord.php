@@ -80,15 +80,23 @@ class StatementRecord extends Model
      */
     public static function generateReferenceNumber($type = 'TXN'): string
     {
-        $date = date('Ymd');
+        $prefix = strtoupper((string) $type) . date('Ymd');
+        $latestReference = static::query()
+            ->where('reference_number', 'like', $prefix . '%')
+            ->orderByDesc('reference_number')
+            ->value('reference_number');
 
-        // Get the count of records for today to create a sequential number
-        $todayStart = date('Y-m-d') . ' 00:00:00';
-        $todayEnd = date('Y-m-d') . ' 23:59:59';
-        $count = static::whereBetween('created_at', [$todayStart, $todayEnd])->count() + 1;
-        $sequential = str_pad($count, 3, '0', STR_PAD_LEFT);
+        $nextSequence = 1;
+        if (is_string($latestReference) && preg_match('/^' . preg_quote($prefix, '/') . '(\d+)$/', $latestReference, $matches)) {
+            $nextSequence = ((int) $matches[1]) + 1;
+        }
 
-        return "{$type}{$date}{$sequential}";
+        do {
+            $candidate = $prefix . str_pad((string) $nextSequence, 6, '0', STR_PAD_LEFT);
+            $nextSequence++;
+        } while (static::query()->where('reference_number', $candidate)->exists());
+
+        return $candidate;
     }
 
     /**
