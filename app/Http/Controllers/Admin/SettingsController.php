@@ -22,6 +22,50 @@ class SettingsController extends Controller
         ]);
     }
 
+    public function logs(Request $request): View
+    {
+        $level = strtolower((string) $request->query('level', 'all'));
+        $search = trim((string) $request->query('search', ''));
+        $limit = (int) $request->query('limit', 100);
+        $limit = max(25, min($limit, 250));
+        $allowedLevels = ['all', 'emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
+        $allEntries = collect($this->readLogEntries());
+
+        if (!in_array($level, $allowedLevels, true)) {
+            $level = 'all';
+        }
+
+        $entries = $allEntries
+            ->when($level !== 'all', fn ($items) => $items->where('level', $level))
+            ->when($search !== '', function ($items) use ($search) {
+                $needle = mb_strtolower($search);
+
+                return $items->filter(function (array $entry) use ($needle) {
+                    return str_contains(mb_strtolower($entry['message']), $needle)
+                        || str_contains(mb_strtolower($entry['context']), $needle)
+                        || str_contains(mb_strtolower($entry['details']), $needle);
+                });
+            })
+            ->values();
+
+        $counts = $allEntries
+            ->countBy('level')
+            ->all();
+
+        return view('admin.logs', [
+            'title' => 'System Logs',
+            'subtitle' => 'Review backend warnings and errors from Laravel log file.',
+            'entries' => $entries->take($limit),
+            'totalMatches' => $entries->count(),
+            'level' => $level,
+            'search' => $search,
+            'limit' => $limit,
+            'counts' => $counts,
+            'logFilePath' => storage_path('logs/laravel.log'),
+            'logFileExists' => is_file(storage_path('logs/laravel.log')),
+        ]);
+    }
+
     public function updateSmtp(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -67,6 +111,83 @@ class SettingsController extends Controller
             return redirect()->route('admin.settings')->with('status', "Test email sent to {$to}. Check your inbox.");
         } catch (\Throwable $e) {
             return redirect()->route('admin.settings')->with('error', 'SMTP test failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Read recent Laravel log entries from end of file.
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function readLogEntries(): array
+    {
+        $path = storage_path('logs/laravel.log');
+
+        if (!is_file($path) || !is_readable($path)) {
+            return [];
+        }
+
+        $raw = $this->readTail($path, 1024 * 1024);
+        $lines = preg_split("/\r\n|\n|\r/", $raw) ?: [];
+        $entries = [];
+
+        foreach ($lines as $line) {
+            if ($line === '') {
+                continue;
+            }
+
+            if (preg_match('/^\[(?<time>[^\]]+)\]\s+\S+\.(?<level>[A-Z]+):\s(?<message>.*)$/', $line, $matches)) {
+                $entries[] = [
+                    'timestamp' => trim($matches['time']),
+                    'level' => strtolower(trim($matches['level'])),
+                    'message' => trim($matches['message']),
+                    'context' => '',
+                    'details' => '',
+                ];
+                continue;
+            }
+
+            if (!empty($entries)) {
+                $index = array_key_last($entries);
+                $entries[$index]['details'] .= ($entries[$index]['details'] === '' ? '' : "\n") . $line;
+            }
+        }
+
+        foreach ($entries as &$entry) {
+            if (preg_match('/^(?<message>.*?)(?<context>\s\{.*\})$/', $entry['message'], $matches)) {
+                $entry['message'] = trim($matches['message']);
+                $entry['context'] = trim($matches['context']);
+            }
+        }
+        unset($entry);
+
+        return array_reverse($entries);
+    }
+
+    private function readTail(string $path, int $bytes): string
+    {
+        $handle = fopen($path, 'rb');
+
+        if ($handle === false) {
+            return '';
+        }
+
+        try {
+            $size = filesize($path) ?: 0;
+            $offset = max(0, $size - $bytes);
+            fseek($handle, $offset);
+            $content = stream_get_contents($handle) ?: '';
+
+            if ($offset > 0) {
+                $firstNewline = strpos($content, "\n");
+                if ($firstNewline !== false) {
+                    $content = substr($content, $firstNewline + 1);
+                }
+            }
+
+            return $content;
+        } finally {
+            fclose($handle);
         }
     }
 }

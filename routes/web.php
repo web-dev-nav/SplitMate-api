@@ -42,5 +42,6 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings');
         Route::post('/settings/smtp', [SettingsController::class, 'updateSmtp'])->name('settings.smtp');
         Route::post('/settings/smtp/test', [SettingsController::class, 'testSmtp'])->name('settings.smtp.test');
+        Route::get('/logs', [SettingsController::class, 'logs'])->name('logs');
     });
 });
