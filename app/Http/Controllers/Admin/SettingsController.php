@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 
@@ -46,7 +45,7 @@ class SettingsController extends Controller
         }
 
         // Apply to current runtime so the test below works immediately
-        $this->applySmtpToRuntime($validated);
+        AdminSetting::applySmtpSettingsToRuntime();
 
         return redirect()->route('admin.settings')->with('status', 'SMTP settings saved successfully.');
     }
@@ -54,7 +53,7 @@ class SettingsController extends Controller
     public function testSmtp(Request $request): RedirectResponse
     {
         $smtp = AdminSetting::smtpSettings();
-        $this->applySmtpToRuntime($smtp);
+        AdminSetting::applySmtpSettingsToRuntime();
 
         $to = $request->input('test_email', $smtp['mail_from_address']);
 
@@ -69,17 +68,5 @@ class SettingsController extends Controller
         } catch (\Throwable $e) {
             return redirect()->route('admin.settings')->with('error', 'SMTP test failed: ' . $e->getMessage());
         }
-    }
-
-    private function applySmtpToRuntime(array $smtp): void
-    {
-        Config::set('mail.default', $smtp['mail_mailer'] ?? 'smtp');
-        Config::set('mail.mailers.smtp.host', $smtp['mail_host'] ?? '');
-        Config::set('mail.mailers.smtp.port', (int) ($smtp['mail_port'] ?? 587));
-        Config::set('mail.mailers.smtp.username', $smtp['mail_username'] ?? '');
-        Config::set('mail.mailers.smtp.password', $smtp['mail_password'] ?? '');
-        Config::set('mail.mailers.smtp.encryption', $smtp['mail_encryption'] ?: null);
-        Config::set('mail.from.address', $smtp['mail_from_address'] ?? '');
-        Config::set('mail.from.name', $smtp['mail_from_name'] ?? 'SplitMate');
     }
 }

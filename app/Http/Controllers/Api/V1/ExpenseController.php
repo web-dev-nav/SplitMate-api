@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Mail\ExpenseCreatedMail;
+use App\Models\AdminSetting;
 use App\Models\Expense;
 use App\Models\Group;
 use App\Models\StatementRecord;
@@ -12,6 +13,7 @@ use App\Services\BalanceService;
 use App\Support\ApiPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -393,6 +395,8 @@ class ExpenseController extends Controller
             return;
         }
 
+        AdminSetting::applySmtpSettingsToRuntime();
+
         $paidByName = optional($expense->paidByUser)->name ?? 'Someone';
         $snapshot = $this->balanceService->calculateSnapshot($group);
         $activeMembers = $group->members()
@@ -412,8 +416,14 @@ class ExpenseController extends Controller
                         $this->snapshotForRecipient($snapshot['summaries'] ?? [], $member)
                     )
                 );
-            } catch (\Throwable) {
-                // Never fail the request due to email errors
+            } catch (\Throwable $e) {
+                Log::error('Failed to send expense notification email.', [
+                    'group_id' => $group->id,
+                    'expense_id' => $expense->id,
+                    'recipient_user_id' => $member->id,
+                    'recipient_email' => $member->email,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
     }

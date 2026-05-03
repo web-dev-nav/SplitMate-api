@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\AdminSetting;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Config;
 
 class SmtpSettingsServiceProvider extends ServiceProvider
 {
@@ -16,18 +16,7 @@ class SmtpSettingsServiceProvider extends ServiceProvider
     {
         try {
             if (\Illuminate\Support\Facades\Schema::hasTable('admin_settings')) {
-                $settings = \App\Models\AdminSetting::smtpSettings();
-
-                if (!empty($settings['mail_host'])) {
-                    Config::set('mail.default', $settings['mail_mailer']);
-                    Config::set('mail.mailers.smtp.host', $settings['mail_host']);
-                    Config::set('mail.mailers.smtp.port', (int) $settings['mail_port']);
-                    Config::set('mail.mailers.smtp.username', $settings['mail_username']);
-                    Config::set('mail.mailers.smtp.password', $settings['mail_password']);
-                    Config::set('mail.mailers.smtp.encryption', $settings['mail_encryption'] ?: null);
-                    Config::set('mail.from.address', $settings['mail_from_address']);
-                    Config::set('mail.from.name', $settings['mail_from_name']);
-                }
+                AdminSetting::applySmtpSettingsToRuntime();
             }
         } catch (\Throwable) {
             // Silently fall back to .env values

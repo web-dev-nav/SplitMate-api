@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Config;
 
 class AdminSetting extends Model
 {
@@ -45,5 +46,26 @@ class AdminSetting extends Model
             'mail_from_address' => $settings['mail_from_address'] ?? config('mail.from.address', ''),
             'mail_from_name'    => $settings['mail_from_name']    ?? config('mail.from.name', 'SplitMate'),
         ];
+    }
+
+    /**
+     * Apply saved SMTP settings to current runtime.
+     */
+    public static function applySmtpSettingsToRuntime(): void
+    {
+        $smtp = static::smtpSettings();
+
+        if (empty($smtp['mail_host'])) {
+            return;
+        }
+
+        Config::set('mail.default', $smtp['mail_mailer'] ?? 'smtp');
+        Config::set('mail.mailers.smtp.host', $smtp['mail_host'] ?? '');
+        Config::set('mail.mailers.smtp.port', (int) ($smtp['mail_port'] ?? 587));
+        Config::set('mail.mailers.smtp.username', $smtp['mail_username'] ?? '');
+        Config::set('mail.mailers.smtp.password', $smtp['mail_password'] ?? '');
+        Config::set('mail.mailers.smtp.encryption', ($smtp['mail_encryption'] ?? '') ?: null);
+        Config::set('mail.from.address', $smtp['mail_from_address'] ?? '');
+        Config::set('mail.from.name', $smtp['mail_from_name'] ?? 'SplitMate');
     }
 }
