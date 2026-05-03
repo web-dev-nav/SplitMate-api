@@ -127,6 +127,35 @@ class SettingsController extends Controller
         }
     }
 
+    public function clearLogs(Request $request): RedirectResponse
+    {
+        $path = storage_path('logs/laravel.log');
+
+        try {
+            if (!is_file($path)) {
+                return redirect()
+                    ->route('admin.logs', $request->query())
+                    ->with('error', 'Log file not found.');
+            }
+
+            if (!is_writable($path)) {
+                return redirect()
+                    ->route('admin.logs', $request->query())
+                    ->with('error', 'Log file is not writable.');
+            }
+
+            file_put_contents($path, '');
+
+            return redirect()
+                ->route('admin.logs')
+                ->with('status', 'Log file cleared successfully.');
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('admin.logs', $request->query())
+                ->with('error', 'Failed to clear log file: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Read recent Laravel log entries from end of file.
      *

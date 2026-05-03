@@ -28,6 +28,10 @@
                 </div>
                 <div class="actions">
                     <a href="{{ route('admin.logs', request()->query()) }}" class="button">Refresh</a>
+                    <form method="POST" action="{{ route('admin.logs.clear', request()->query()) }}" onsubmit="return confirm('Clear laravel.log file? This cannot be undone.');">
+                        @csrf
+                        <button type="submit" class="button danger">Clear Log File</button>
+                    </form>
                     <a href="{{ route('admin.settings') }}" class="button">Back To Settings</a>
                 </div>
             </div>
