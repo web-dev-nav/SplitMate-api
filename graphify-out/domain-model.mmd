@@ -1,0 +1,90 @@
+classDiagram
+    class User {
+        +id
+        +uuid
+        +name
+        +email
+    }
+
+    class Group {
+        +id
+        +name
+        +invite_code
+        +qr_join_token
+        +currency_code
+        +expense_categories
+        +email_notifications
+    }
+
+    class Expense {
+        +id
+        +uuid
+        +group_id
+        +paid_by_user_id
+        +amount_cents
+        +expense_date
+        +category
+        +participant_ids[]
+    }
+
+    class Settlement {
+        +id
+        +uuid
+        +group_id
+        +from_user_id
+        +to_user_id
+        +amount_cents
+        +settlement_date
+    }
+
+    class StatementRecord {
+        +id
+        +uuid
+        +group_id
+        +user_id
+        +expense_id
+        +settlement_id
+        +transaction_type
+        +amount_cents
+        +balance_before_cents
+        +balance_after_cents
+        +reference_number
+    }
+
+    class GroupInvitation {
+        +id
+        +group_id
+        +email
+        +token
+    }
+
+    class BalanceService {
+        +calculateSnapshot(group)
+        +buildStatements(group, userId)
+        +createStatementRecords(group, expense, settlement)
+    }
+
+    User "1" --> "many" Group : creates
+    Group "*" --> "*" User : members via group_user
+    Group "1" --> "many" Expense : has
+    Group "1" --> "many" Settlement : has
+    Group "1" --> "many" StatementRecord : has
+    Group "1" --> "many" GroupInvitation : has
+
+    Expense "many" --> "1" Group : belongs to
+    Expense "many" --> "1" User : paid by
+
+    Settlement "many" --> "1" Group : belongs to
+    Settlement "many" --> "1" User : from
+    Settlement "many" --> "1" User : to
+
+    StatementRecord "many" --> "1" Group : belongs to
+    StatementRecord "many" --> "1" User : belongs to
+    StatementRecord "many" --> "0..1" Expense : references
+    StatementRecord "many" --> "0..1" Settlement : references
+
+    BalanceService ..> Group : reads
+    BalanceService ..> Expense : reads
+    BalanceService ..> Settlement : reads
+    BalanceService ..> StatementRecord : writes
+    BalanceService ..> User : reads

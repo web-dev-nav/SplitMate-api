@@ -1,0 +1,93 @@
+flowchart TD
+    Client[Mobile or Web Client]
+    Admin[Admin Browser]
+
+    subgraph Routes
+        ApiRoutes[routes/api.php]
+        WebRoutes[routes/web.php]
+    end
+
+    subgraph API_V1[API v1 Controllers]
+        AuthC[AuthController]
+        GroupC[GroupController]
+        GroupMemberC[GroupMemberController]
+        ExpenseC[ExpenseController]
+        SettlementC[SettlementController]
+        BalanceC[BalanceController]
+        StatementC[StatementController]
+    end
+
+    subgraph LegacyWeb[Legacy Web Controllers]
+        LegacyExpenseC[ExpenseController]
+        AdminDashC[Admin DashboardController]
+        AdminSettingsC[Admin SettingsController]
+        MediaC[PublicMediaController]
+    end
+
+    subgraph Domain
+        GroupM[Group]
+        UserM[User]
+        ExpenseM[Expense]
+        SettlementM[Settlement]
+        StatementRecordM[StatementRecord]
+        InvitationM[GroupInvitation]
+    end
+
+    subgraph Services
+        BalanceS[BalanceService]
+        PayloadS[ApiPayload]
+        Mailers[ExpenseCreatedMail and SettlementCreatedMail]
+    end
+
+    Client --> ApiRoutes
+    Admin --> WebRoutes
+
+    ApiRoutes --> AuthC
+    ApiRoutes --> GroupC
+    ApiRoutes --> GroupMemberC
+    ApiRoutes --> ExpenseC
+    ApiRoutes --> SettlementC
+    ApiRoutes --> BalanceC
+    ApiRoutes --> StatementC
+
+    WebRoutes --> LegacyExpenseC
+    WebRoutes --> AdminDashC
+    WebRoutes --> AdminSettingsC
+    WebRoutes --> MediaC
+
+    GroupC --> GroupM
+    GroupC --> InvitationM
+    GroupC --> PayloadS
+
+    GroupMemberC --> GroupM
+    GroupMemberC --> UserM
+
+    ExpenseC --> ExpenseM
+    ExpenseC --> GroupM
+    ExpenseC --> UserM
+    ExpenseC --> StatementRecordM
+    ExpenseC --> BalanceS
+    ExpenseC --> PayloadS
+    ExpenseC --> Mailers
+
+    SettlementC --> SettlementM
+    SettlementC --> GroupM
+    SettlementC --> UserM
+    SettlementC --> StatementRecordM
+    SettlementC --> BalanceS
+    SettlementC --> PayloadS
+    SettlementC --> Mailers
+
+    BalanceC --> BalanceS
+    StatementC --> BalanceS
+
+    LegacyExpenseC --> ExpenseM
+    LegacyExpenseC --> SettlementM
+    LegacyExpenseC --> StatementRecordM
+    LegacyExpenseC --> UserM
+
+    BalanceS --> GroupM
+    BalanceS --> ExpenseM
+    BalanceS --> SettlementM
+    BalanceS --> StatementRecordM
+    BalanceS --> UserM
