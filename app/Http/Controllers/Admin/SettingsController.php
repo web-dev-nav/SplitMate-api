@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminSetting;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -26,8 +27,9 @@ class SettingsController extends Controller
     {
         $level = strtolower((string) $request->query('level', 'all'));
         $search = trim((string) $request->query('search', ''));
-        $limit = (int) $request->query('limit', 100);
-        $limit = max(25, min($limit, 250));
+        $perPage = (int) $request->query('per_page', 50);
+        $perPage = max(25, min($perPage, 250));
+        $page = max(1, (int) $request->query('page', 1));
         $allowedLevels = ['all', 'emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
         $allEntries = collect($this->readLogEntries());
 
@@ -52,14 +54,25 @@ class SettingsController extends Controller
             ->countBy('level')
             ->all();
 
+        $paginator = new LengthAwarePaginator(
+            $entries->forPage($page, $perPage)->values(),
+            $entries->count(),
+            $perPage,
+            $page,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
+
         return view('admin.logs', [
             'title' => 'System Logs',
             'subtitle' => 'Review backend warnings and errors from Laravel log file.',
-            'entries' => $entries->take($limit),
+            'entries' => $paginator,
             'totalMatches' => $entries->count(),
             'level' => $level,
             'search' => $search,
-            'limit' => $limit,
+            'perPage' => $perPage,
             'counts' => $counts,
             'logFilePath' => storage_path('logs/laravel.log'),
             'logFileExists' => is_file(storage_path('logs/laravel.log')),
