@@ -224,6 +224,11 @@ class SettlementController extends Controller
     private function sendSettlementNotifications(Group $group, Settlement $settlement, User $actor): void
     {
         if (!$group->email_notifications) {
+            Log::info('Settlement notification skipped because group email notifications are disabled.', [
+                'group_id' => $group->id,
+                'settlement_id' => $settlement->id,
+                'actor_user_id' => $actor->id,
+            ]);
             return;
         }
 
@@ -236,6 +241,26 @@ class SettlementController extends Controller
             ->whereNotNull('users.email')
             ->get();
 
+        Log::info('Settlement notification dispatch starting.', [
+            'group_id' => $group->id,
+            'settlement_id' => $settlement->id,
+            'actor_user_id' => $actor->id,
+            'recipient_count' => $activeMembers->count(),
+            'mailer' => config('mail.default'),
+            'mail_host' => config('mail.mailers.smtp.host'),
+            'mail_port' => config('mail.mailers.smtp.port'),
+            'mail_scheme' => config('mail.mailers.smtp.scheme'),
+            'mail_encryption' => config('mail.mailers.smtp.encryption'),
+        ]);
+
+        if ($activeMembers->isEmpty()) {
+            Log::warning('Settlement notification skipped because no active members with email were found.', [
+                'group_id' => $group->id,
+                'settlement_id' => $settlement->id,
+            ]);
+            return;
+        }
+
         foreach ($activeMembers as $member) {
             try {
                 Mail::to($member->email)->send(
@@ -246,12 +271,20 @@ class SettlementController extends Controller
                         $this->snapshotForRecipient($snapshot['summaries'] ?? [], $member)
                     )
                 );
+
+                Log::info('Settlement notification sent successfully.', [
+                    'group_id' => $group->id,
+                    'settlement_id' => $settlement->id,
+                    'recipient_user_id' => $member->id,
+                    'recipient_email' => $member->email,
+                ]);
             } catch (\Throwable $e) {
                 Log::error('Failed to send settlement notification email.', [
                     'group_id' => $group->id,
                     'settlement_id' => $settlement->id,
                     'recipient_user_id' => $member->id,
                     'recipient_email' => $member->email,
+                    'exception_class' => $e::class,
                     'error' => $e->getMessage(),
                 ]);
             }

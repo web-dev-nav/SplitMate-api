@@ -392,6 +392,11 @@ class ExpenseController extends Controller
     private function sendExpenseNotifications(Group $group, Expense $expense, User $paidByUser): void
     {
         if (!$group->email_notifications) {
+            Log::info('Expense notification skipped because group email notifications are disabled.', [
+                'group_id' => $group->id,
+                'expense_id' => $expense->id,
+                'paid_by_user_id' => $paidByUser->id,
+            ]);
             return;
         }
 
@@ -403,6 +408,26 @@ class ExpenseController extends Controller
             ->wherePivot('is_active', true)
             ->whereNotNull('users.email')
             ->get();
+
+        Log::info('Expense notification dispatch starting.', [
+            'group_id' => $group->id,
+            'expense_id' => $expense->id,
+            'paid_by_user_id' => $paidByUser->id,
+            'recipient_count' => $activeMembers->count(),
+            'mailer' => config('mail.default'),
+            'mail_host' => config('mail.mailers.smtp.host'),
+            'mail_port' => config('mail.mailers.smtp.port'),
+            'mail_scheme' => config('mail.mailers.smtp.scheme'),
+            'mail_encryption' => config('mail.mailers.smtp.encryption'),
+        ]);
+
+        if ($activeMembers->isEmpty()) {
+            Log::warning('Expense notification skipped because no active members with email were found.', [
+                'group_id' => $group->id,
+                'expense_id' => $expense->id,
+            ]);
+            return;
+        }
 
         foreach ($activeMembers as $member) {
             try {
@@ -416,12 +441,20 @@ class ExpenseController extends Controller
                         $this->snapshotForRecipient($snapshot['summaries'] ?? [], $member)
                     )
                 );
+
+                Log::info('Expense notification sent successfully.', [
+                    'group_id' => $group->id,
+                    'expense_id' => $expense->id,
+                    'recipient_user_id' => $member->id,
+                    'recipient_email' => $member->email,
+                ]);
             } catch (\Throwable $e) {
                 Log::error('Failed to send expense notification email.', [
                     'group_id' => $group->id,
                     'expense_id' => $expense->id,
                     'recipient_user_id' => $member->id,
                     'recipient_email' => $member->email,
+                    'exception_class' => $e::class,
                     'error' => $e->getMessage(),
                 ]);
             }
